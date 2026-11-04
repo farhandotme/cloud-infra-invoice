@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer} from 'recharts';
-import {Server,Cpu,MemoryStick,HardDrive,Network,Terminal,Folder,FolderOpen,FileCode2,ChevronRight,Play,RotateCw,ShieldCheck,Activity,ArrowUpRight,Filter,MoreHorizontal} from 'lucide-react';
+import {Server,Cpu,MemoryStick,HardDrive,Network,Terminal,MapPin,Folder,FolderOpen,FileCode2,ChevronRight,Play,RotateCw,ShieldCheck,Activity,ArrowUpRight,Filter,MoreHorizontal} from 'lucide-react';
 
 const cash=n=>'₹'+Math.round(n).toLocaleString('en-IN');
 const makeHistory=(range,seed)=>{
@@ -25,27 +25,151 @@ export default function CompanyDashboard({clients,selectedClient,setSelectedClie
  const client=selectedClient||clients[0],history=useMemo(()=>makeHistory(range,client.code.length+tick),[range,client.code,tick]);
  useEffect(()=>{const t=setInterval(()=>setTick(v=>v+1),7000);return()=>clearInterval(t)},[]);
  const cpu=34+(tick*7%21),ram=61+(tick*5%17),disk=52+(tick*3%9),net=18+(tick*11%29),daily=client.monthly/30*(1+Math.sin(tick*.4)*.025);
- const execute=()=>{let out='';const c=cmd.trim();if(!c)return;if(c==='clear'){setLines([]);setCmd('');return;}const map={help:'Demo commands: help, whoami, pwd, ls, df -h, free -h, uptime, docker ps, top','whoami':'cloudledger-admin','pwd':'/srv/clients/northstar-commerce','ls':'app  infrastructure  .env.example  README.md','df -h':'/dev/nvme0n1  120G  62G  58G  52%  /','free -h':'Mem: 15.6Gi total  9.5Gi used  4.1Gi free  2.0Gi cache','uptime':'up 42 days, 06:21 · load average: 0.42, 0.51, 0.48','docker ps':'CONTAINER       STATUS          PORTS\napi             Up 12 days      4000/tcp\nredis           Up 42 days      6379/tcp','top':`CPU ${cpu}%  MEM ${ram}%  LOAD 0.42  TASKS 128`};out=map[c]||`bash: ${c}: demo shell only — no production host is connected`;setLines(v=>[...v,`cloudledger@northstar-prod:~$ ${c}`,out]);setCmd('');};
+ const execute=(command=cmd)=>{let out='';const c=command.trim();if(!c)return;if(c==='clear'){setLines([]);setCmd('');return;}const map={
+  help:'Demo commands: whoami, pwd, ls, df -h, free -h, uptime, docker ps, docker stats, ps aux, top, systemctl status nginx, ss -tulpn, journalctl -n 8, curl /health, vmstat',
+  whoami:'cloudledger-admin',
+  pwd:`/srv/clients/${client.code.toLowerCase()}`,
+  ls:'app  infrastructure  logs  backups  .env.example  README.md',
+  'ls -la':'drwxr-xr-x  app  infrastructure  logs  backups\n-rw-------  .env.example\n-rw-r--r--  README.md',
+  'df -h':'Filesystem      Size  Used  Avail  Use%  Mounted on\n/dev/nvme0n1    120G   62G    58G   52%  /\n/dev/nvme1n1    500G  188G   312G   38%  /data',
+  'free -h':`Mem: 15.6Gi total  ${(ram*15.6/100).toFixed(1)}Gi used  ${(15.6-ram*15.6/100).toFixed(1)}Gi free  2.0Gi cache\nSwap: 2.0Gi total  0.2Gi used  1.8Gi free`,
+  uptime:'up 42 days, 06:21 · load average: 0.42, 0.51, 0.48',
+  'docker ps':'CONTAINER ID  IMAGE               STATUS          PORTS\n8c21a45f      northstar-api:2.4.1  Up 12 days      4000/tcp\n6fb33dc1      redis:7-alpine       Up 42 days      6379/tcp\n2aa7b4c9      nginx:1.27           Up 42 days      80, 443/tcp\n77c1bd8a      worker:2.4.1         Up 6 days       -',
+  'docker stats':`CONTAINER       CPU %   MEM USAGE / LIMIT   NET I/O\nnorthstar-api   ${cpu}%    1.8GiB / 4GiB       2.4GB / 1.9GB\nredis           3.2%    312MiB / 1GiB       840MB / 1.1GB\nnginx           1.1%    86MiB / 512MiB      4.2GB / 3.8GB`,
+  'ps aux':'USER       PID   %CPU  %MEM  COMMAND\nnode       1842  12.4  10.8  node src/server.js\npostgres   928   8.2   18.4  postgres: checkpointer\nredis      1055  2.1   2.0   redis-server\nnginx      1102  0.8   0.6   nginx: worker process',
+  top:`CPU ${cpu}%  MEM ${ram}%  LOAD 0.42  TASKS 128  THREADS 436`,
+  'systemctl status nginx':'● nginx.service - A high performance web server\n   Active: active (running) since 42 days ago\n   Main PID: 1102 · Workers: 4\n   Config: /etc/nginx/nginx.conf',
+  'ss -tulpn':'Netid  State   Local Address:Port\ntcp    LISTEN  0.0.0.0:22\ntcp    LISTEN  0.0.0.0:80\ntcp    LISTEN  0.0.0.0:443\ntcp    LISTEN  127.0.0.1:4000\ntcp    LISTEN  127.0.0.1:5432',
+  'journalctl -n 8':'11:58:12 nginx[1102]: upstream health check passed\n11:57:48 node[1842]: GET /api/v1/orders 200 34ms\n11:57:31 worker[2091]: queue job completed id=job_8f12\n11:56:54 postgres[928]: checkpoint complete\n11:56:11 redis[1055]: background saving terminated',
+  'curl /health':'HTTP/1.1 200 OK\n{ "status": "ok", "service": "northstar-api", "region": "ap-south-1" }',
+  vmstat:'procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----\nr  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id\n2  0  2048 4180000 180000 2100000    0    0    12    34  420  680 18  7 75'
+};out=map[c]||`bash: ${c}: demo shell only — no production host is connected`;setLines(v=>[...v,`cloudledger@northstar-prod:~$ ${c}`,out]);setCmd('');};
  const render=(nodes,depth=0)=><>{nodes.map((n,i)=><React.Fragment key={n.id||n.name+i}><button className={`tree-node ${file===n.name?'picked':''}`} style={{paddingLeft:10+depth*14}} onClick={()=>n.folder?setOpen(v=>v.includes(n.id)?v.filter(x=>x!==n.id):[...v,n.id]):setFile(n.name)}>{n.folder?(open.includes(n.id)?<FolderOpen size={13}/>:<Folder size={13}/>):<FileCode2 size={13}/>}<span>{n.name}</span>{n.folder&&<ChevronRight className={open.includes(n.id)?'rotated':''} size={12}/>}</button>{n.children&&open.includes(n.id)&&render(n.children,depth+1)}</React.Fragment>)}</>;
  return <div className="company-workspace">
   <div className="company-select-bar"><div><i className="live-dot"/> CLIENT ENVIRONMENT <b>PRODUCTION</b></div><select value={client.code} onChange={e=>setSelectedClient(clients.find(c=>c.code===e.target.value))}>{clients.map(c=><option key={c.code} value={c.code}>{c.name} · {c.code}</option>)}</select></div>
-  <div className="company-hero"><div><div className="company-kicker">CLIENT INFRASTRUCTURE / {client.code}</div><h2>{client.name}</h2><p><i className="healthy-pulse"/> Production environment healthy <span>·</span> AWS ap-south-1 <span>·</span> Linux x86_64</p></div><div className="hero-actions"><span className="status connected">All services operational</span><button className="btn secondary" onClick={()=>setTick(v=>v+1)}><RotateCw size={13}/> Refresh metrics</button></div></div>
+  <div className="company-hero"><div><div className="company-kicker">CLIENT INFRASTRUCTURE / {client.code}</div><h2>{client.name}</h2><p className="hero-meta"><i className="healthy-pulse"/> Production environment healthy <span>·</span> Linux x86_64</p>
+      <div className="deployment-tags">
+        <span className="location-tag"><MapPin size={12}/> Mumbai, India</span>
+        <span className="region-tag">AWS Asia Pacific · <b>ap-south-1</b></span>
+        <span className="zone-tag">Availability zone · ap-south-1a</span>
+      </div></div><div className="hero-actions"><span className="status connected">All services operational</span><button className="btn secondary" onClick={()=>setTick(v=>v+1)}><RotateCw size={13}/> Refresh metrics</button></div></div>
   <div className="company-metrics">
-   <Metric label="LIVE RUN-RATE" value={cash(daily)} unit="/ day" sub="Estimated live cost" trend/>
-   <Metric label="CPU UTILIZATION" value={cpu} unit="%" sub="8 vCPU allocated" bar={cpu}/>
-   <Metric label="MEMORY USAGE" value={ram} unit="%" sub="9.8 / 16 GB used" bar={ram}/>
-   <Metric label="DISK UTILIZATION" value={disk} unit="%" sub="62 / 120 GB used" bar={disk}/>
-   <Metric label="NETWORK I/O" value={net} unit=" MB/s" sub="Ingress 18.4 · Egress 9.2"/>
+   <Metric tone="cost" label="LIVE RUN-RATE" value={cash(daily)} unit="/ day" sub="Estimated live cost" trend/>
+   <Metric tone="cpu" label="CPU UTILIZATION" value={cpu} unit="%" sub="8 vCPU allocated" bar={cpu}/>
+   <Metric tone="memory" label="MEMORY USAGE" value={ram} unit="%" sub="9.8 / 16 GB used" bar={ram}/>
+   <Metric tone="disk" label="DISK UTILIZATION" value={disk} unit="%" sub="62 / 120 GB used" bar={disk}/>
+   <Metric tone="network" label="NETWORK I/O" value={net} unit=" MB/s" sub="Ingress 18.4 · Egress 9.2"/>
   </div>
-  <div className="company-tabs">{['Overview','Servers & services','Terminal & files','Activity log'].map(x=><button className={tab===x?'active':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
-  {tab==='Overview'&&<><div className="company-grid"><section className="panel spend-panel"><div className="panel-head"><div><h3>Infrastructure cost movement</h3><p>Spend history and budget guide · {client.name}</p></div><span className="live-pill">● LIVE</span></div><div className="spend-summary"><div><small>Current period spend</small><b>{cash(history.reduce((a,x)=>a+x.cost,0))}</b></div><div><small>Projected monthly</small><b>{cash(client.monthly)}</b></div><div><small>Budget utilization</small><b>72.4%</b></div></div><div className="range-tabs">{[['1D','Daily'],['1W','Weekly'],['1M','Monthly'],['1Y','Yearly']].map(([v,l])=><button key={v} className={range===v?'chosen':''} onClick={()=>setRange(v)}>{l}</button>)}</div><div className="spend-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={history} margin={{top:10,right:8,left:-18,bottom:0}}><defs><linearGradient id="spendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3978e8" stopOpacity={.22}/><stop offset="100%" stopColor="#3978e8" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#edf0f4" vertical={false}/><XAxis dataKey="label" tick={{fontSize:9,fill:'#929baa'}} axisLine={false} tickLine={false} interval="preserveStartEnd"/><YAxis tick={{fontSize:9,fill:'#929baa'}} axisLine={false} tickLine={false} tickFormatter={v=>`₹${Math.round(v/100)/10}k`}/><Tooltip formatter={v=>cash(v)}/><Area type="monotone" dataKey="cost" name="Spend" stroke="#3978e8" strokeWidth={2.2} fill="url(#spendFill)"/><Area type="monotone" dataKey="budget" name="Budget guide" stroke="#e3a343" strokeDasharray="5 5" fill="transparent"/></AreaChart></ResponsiveContainer></div><div className="chart-bottom"><span><i className="live-dot"/> Refreshes every 7 seconds · simulated telemetry</span><span>History · {range}</span></div></section>
-   <section className="panel"><div className="panel-head"><div><h3>Server health</h3><p>Primary production node</p></div><span className="status connected">Healthy</span></div><div className="server-identity"><div className="server-icon"><Server size={19}/></div><div><b>prod-api-01</b><small>i-0a82c9f1 · t3.xlarge</small></div></div><div className="server-specs">{[['Operating system','Ubuntu 24.04 LTS'],['Kernel','6.8.0-52-generic'],['Availability zone','ap-south-1a'],['Public IPv4','13.201.84.XX'],['Uptime','42d 06h 21m'],['Instance state','Running']].map(x=><div key={x[0]}><span>{x[0]}</span><b>{x[1]}</b></div>)}</div><button className="text-link" onClick={()=>setTab('Servers & services')}>View full server details <ArrowUpRight size={13}/></button></section></div>
-   <div className="company-grid"><section className="panel"><div className="panel-head"><div><h3>Resource telemetry</h3><p>Operational signals · rolling sample</p></div><span className="status connected">Monitoring</span></div><div className="telemetry-grid"><Tiny label="CPU LOAD" value={`${cpu}%`} sub="8 vCPU"/><Tiny label="RAM PRESSURE" value={`${ram}%`} sub="16 GB total"/><Tiny label="DISK I/O" value="142 MB/s" sub="NVMe volume"/><Tiny label="NETWORK" value={`${net} MB/s`} sub="Ingress + egress"/></div></section><section className="panel"><div className="panel-head"><div><h3>Cost breakdown</h3><p>Estimated allocation · current month</p></div><span className="status pending">Estimate</span></div>{[['Compute instances',48],['Managed database',23],['Storage & backups',12],['Network & egress',7],['Maintenance & support',10]].map(([label,p])=><div className="breakdown-row" key={label}><span>{label}</span><b>{cash(client.monthly*p/100)}</b><i><em style={{width:`${p}%`}}/></i></div>)}</section></div></>}
-  {tab==='Servers & services'&&<section className="panel table-panel"><div className="panel-head"><div><h3>Compute & managed services</h3><p>Provisioned resources for {client.name}</p></div><button className="btn secondary"><Filter size={14}/> Filters</button></div><div className="table-scroll"><table><thead><tr><th>RESOURCE</th><th>TYPE</th><th>REGION</th><th>CPU</th><th>MEMORY</th><th>MONTHLY COST</th><th>STATE</th></tr></thead><tbody>{[['prod-api-01','EC2 · t3.xlarge','ap-south-1a','34%','61%','₹12,400'],['prod-db-01','RDS · db.r6g.large','ap-south-1a','46%','72%','₹9,800'],['worker-queue-02','Droplet · 8 vCPU','BLR1','28%','48%','₹6,200'],['web-edge-01','Vercel Pro','Global','19%','—','₹4,400']].map(r=><tr key={r[0]}>{r.map((v,i)=><td key={i}>{i===0?<b>{v}</b>:i===5?<b>{v}</b>:v}</td>)}<td><span className="status connected">Running</span></td></tr>)}</tbody></table></div></section>}
-  {tab==='Terminal & files'&&<div className="devtools-grid"><section className="panel file-panel"><div className="panel-head"><div><h3><Folder size={14}/> Codebase explorer</h3><p>Admin-managed repository</p></div><span className="status connected">Read-only demo</span></div><div className="repo-path">/srv/clients/{client.code.toLowerCase()}/</div><div className="file-tree">{render(tree)}</div><div className="file-foot"><ShieldCheck size={12}/> Admin access · audit logging required</div></section><section className="panel code-panel"><div className="code-head"><div><FileCode2 size={14}/><b>{file}</b></div><span>DEMO SOURCE</span></div><pre>{samples[file]||`// ${file}\n// Demo file preview`}</pre><div className="code-foot"><span>UTF-8</span><span>Read-only preview · connect repository to edit</span></div></section><section className="panel terminal-panel"><div className="terminal-head"><div><Terminal size={14}/><b>Web terminal</b><i className="terminal-dot"/></div><span>SIMULATED SHELL</span></div><div className="terminal-output">{lines.map((x,i)=><div className={x.startsWith('cloudledger@')?'prompt-line':''} key={i}>{x}</div>)}</div><form className="terminal-input" onSubmit={e=>{e.preventDefault();execute()}}><span>›</span><input value={cmd} onChange={e=>setCmd(e.target.value)} placeholder="Try: help, df -h, free -h, docker ps"/><button><Play size={13}/></button></form></section></div>}
+  <div className="company-tabs">{['Overview','Servers & services','Codebase','Terminal','Activity log'].map(x=><button className={tab===x?'active':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
+  {tab==='Overview'&&<><div className="company-grid"><section className="panel spend-panel"><div className="panel-head"><div><h3>Infrastructure cost movement</h3><p>Spend history and budget guide · {client.name}</p></div><span className="live-pill">● LIVE</span></div><div className="spend-summary"><div><small>Current period spend</small><b>{cash(history.reduce((a,x)=>a+x.cost,0))}</b></div><div><small>Projected monthly</small><b>{cash(client.monthly)}</b></div><div><small>Budget utilization</small><b>72.4%</b></div></div><div className="range-tabs">{[['1D','Daily'],['1W','Weekly'],['1M','Monthly'],['1Y','Yearly']].map(([v,l])=><button key={v} className={range===v?'chosen':''} onClick={()=>setRange(v)}>{l}</button>)}</div><div className="spend-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={history} margin={{top:10,right:8,left:-18,bottom:0}}><defs><linearGradient id="spendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#c8cdd5" stopOpacity={.22}/><stop offset="100%" stopColor="#c8cdd5" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#edf0f4" vertical={false}/><XAxis dataKey="label" tick={{fontSize:9,fill:'#929baa'}} axisLine={false} tickLine={false} interval="preserveStartEnd"/><YAxis tick={{fontSize:9,fill:'#929baa'}} axisLine={false} tickLine={false} tickFormatter={v=>`₹${Math.round(v/100)/10}k`}/><Tooltip formatter={v=>cash(v)}/><Area type="monotone" dataKey="cost" name="Spend" stroke="#c8cdd5" strokeWidth={2.2} fill="url(#spendFill)"/><Area type="monotone" dataKey="budget" name="Budget guide" stroke="#747e8b" strokeDasharray="5 5" fill="transparent"/></AreaChart></ResponsiveContainer></div><div className="chart-bottom"><span><i className="live-dot"/> Refreshes every 7 seconds · simulated telemetry</span><span>History · {range}</span></div></section>
+   <section className="panel"><div className="panel-head"><div><h3>Server health</h3><p>Primary production node</p></div><span className="status connected">Healthy</span></div><div className="server-identity"><div className="server-icon"><Server size={19}/></div><div><b>prod-api-01</b><small>AWS EC2 · t3.xlarge · Mumbai region</small></div></div><div className="server-specs">{[['Cloud provider','Amazon Web Services'],['Region','Mumbai, India · ap-south-1'],['Availability zone','ap-south-1a'],['Operating system','Ubuntu 24.04 LTS'],['Public IPv4','13.201.84.XX'],['Uptime','42d 06h 21m'],['Instance state','Running']].map(x=><div key={x[0]}><span>{x[0]}</span><b>{x[1]}</b></div>)}</div><button className="text-link" onClick={()=>setTab('Servers & services')}>View full server details <ArrowUpRight size={13}/></button></section></div>
+   <div className="company-grid"><section className="panel"><div className="panel-head"><div><h3>Resource telemetry</h3><p>Operational signals · rolling sample</p></div><span className="status connected">Monitoring</span></div><div className="telemetry-grid"><Tiny label="CPU LOAD" value={`${cpu}%`} sub="8 vCPU"/><Tiny label="RAM PRESSURE" value={`${ram}%`} sub="16 GB total"/><Tiny label="DISK I/O" value="142 MB/s" sub="NVMe volume"/><Tiny label="NETWORK" value={`${net} MB/s`} sub="Ingress + egress"/></div></section><section className="panel"><div className="panel-head"><div><h3>Cost breakdown</h3><p>Estimated allocation · current month</p></div><span className="status pending">Estimate</span></div>{[['Compute instances',48],['Managed database',23],['Storage & backups',12],['Network & egress',7],['Maintenance & support',10]].map(([label,p])=><div className="breakdown-row" key={label}><span>{label}</span><b>{cash(client.monthly*p/100)}</b><i><em style={{width:`${p}%`}}/></i></div>)}</section></div>
+   <div className="operations-grid">
+    <section className="panel live-terminal-card">
+      <div className="panel-head"><div><h3><Terminal size={14}/> Live server terminal</h3><p>Quick admin shell · {client.name} · /srv/clients/{client.code.toLowerCase()}</p></div><div className="terminal-card-state"><i/> SESSION READY</div></div>
+      <div className="terminal-card-toolbar"><span>cloudledger-admin@northstar-prod</span><span>bash · Ubuntu 24.04 · ap-south-1</span><button type="button" onClick={()=>setLines([])}>Clear output</button></div>
+      <div className="terminal-output overview-terminal-output">{lines.slice(-8).map((x,i)=><div className={x.startsWith('cloudledger@')?'prompt-line':''} key={i}>{x}</div>)}</div>
+      <form className="terminal-input overview-terminal-input" onSubmit={e=>{e.preventDefault();execute()}}><span>›</span><input value={cmd} onChange={e=>setCmd(e.target.value)} placeholder="Run a command — try docker ps, free -h, journalctl -n 8"/><button type="submit"><Play size={13}/> Run</button></form>
+      <div className="terminal-card-shortcuts">{['top','docker ps','docker stats','df -h','free -h','journalctl -n 8'].map(c=><button type="button" key={c} onClick={()=>execute(c)}>{c}</button>)}</div>
+    </section>
+    <section className="panel workload-panel">
+      <div className="panel-head"><div><h3>Production workload</h3><p>Application traffic and service pressure</p></div><span className="status connected">Active</span></div>
+      <div className="workload-kpis"><div><small>HTTP REQUESTS</small><b>{(246+tick%38).toLocaleString('en-IN')}<em>/sec</em></b></div><div><small>P95 LATENCY</small><b>{82+tick%23}<em>ms</em></b></div><div><small>ERROR RATE</small><b>0.12<em>%</em></b></div><div><small>ACTIVE SESSIONS</small><b>{132+tick%24}</b></div></div>
+      <div className="workload-separator"/>
+      <div className="workload-row"><span>Database connections</span><b>{46+tick%8} / 100</b><i><em style={{width:`${46+tick%8}%`}}/></i></div>
+      <div className="workload-row"><span>Redis cache hit ratio</span><b>94.8%</b><i><em style={{width:'94.8%'}}/></i></div>
+      <div className="workload-row"><span>Background queue depth</span><b>{18+tick%14} jobs</b><i><em style={{width:`${24+tick%12}%`}}/></i></div>
+      <div className="workload-footer"><span>Worker concurrency <b>12</b></span><span>Scheduled jobs <b>08</b></span><span>Open connections <b>318</b></span></div>
+    </section>
+   </div>
+   <div className="technical-overview-grid">
+    <section className="panel technical-table-panel">
+      <div className="panel-head"><div><h3>Running containers & services</h3><p>Container runtime · Docker Engine 27.3.1 · 5 active / 5 total</p></div><span className="status connected">All running</span></div>
+      <div className="table-scroll"><table><thead><tr><th>CONTAINER / SERVICE</th><th>IMAGE / RUNTIME</th><th>CPU</th><th>MEMORY</th><th>RESTARTS</th><th>STATUS</th></tr></thead><tbody>
+       {[
+        ['northstar-api','northstar-api:2.4.1',`${cpu}%`,'1.8 / 4 GB','0'],
+        ['postgres-primary','postgres:16-alpine','8.2%','2.9 / 8 GB','0'],
+        ['redis-cache','redis:7-alpine','3.2%','312 / 1024 MB','0'],
+        ['nginx-proxy','nginx:1.27-alpine','1.1%','86 / 512 MB','1'],
+        ['queue-worker','node:22-alpine','5.6%','640 / 2048 MB','0']
+       ].map(r=><tr key={r[0]}><td><b>{r[0]}</b></td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td><span className="status connected">Running</span></td></tr>)}
+      </tbody></table></div>
+    </section>
+    <section className="panel runtime-panel">
+      <div className="panel-head"><div><h3>Runtime & host configuration</h3><p>Production node specifications</p></div><span className="status connected">Provisioned</span></div>
+      <div className="runtime-grid">{[
+       ['INSTANCE TYPE','t3.xlarge'],['VCPU','4 cores / 8 threads'],['MEMORY','16 GiB DDR4'],['ROOT VOLUME','120 GB gp3 SSD'],['DATA VOLUME','500 GB gp3 SSD'],['OS IMAGE','Ubuntu Server 24.04 LTS'],['NODE.JS','v22.11.0'],['DATABASE','PostgreSQL 16.4'],['DOCKER ENGINE','27.3.1'],['KERNEL','6.8.0-52-generic'],['PRIVATE SUBNET','10.0.12.0/24'],['SECURITY GROUP','sg-prod-api-web']
+      ].map(r=><div key={r[0]}><small>{r[0]}</small><b>{r[1]}</b></div>)}</div>
+    </section>
+   </div>
+   <div className="technical-overview-grid">
+    <section className="panel deploy-panel">
+      <div className="panel-head"><div><h3>Deployment pipeline</h3><p>Recent releases and build activity</p></div><span className="status connected">CI/CD healthy</span></div>
+      {[
+       ['v2.4.1','Production release · main','04 Nov · 09:42','Deployed'],
+       ['v2.4.0','Database index optimization','03 Nov · 18:16','Deployed'],
+       ['v2.3.9','Worker concurrency update','02 Nov · 14:08','Deployed']
+      ].map(x=><div className="deploy-row" key={x[0]}><span className="deploy-check">✓</span><div><b>{x[0]}</b><small>{x[1]}</small></div><time>{x[2]}</time><span className="deploy-state">{x[3]}</span></div>)}
+      <div className="deploy-footer"><span>Build success rate <b>98.7%</b></span><span>Last build <b>2m 14s</b></span><span>Rollback point <b>v2.4.0</b></span></div>
+    </section>
+    <section className="panel system-log-panel">
+      <div className="panel-head"><div><h3>System event stream</h3><p>Recent application and infrastructure logs</p></div><span className="live-pill">● STREAM</span></div>
+      {[
+       ['12:03:18','INFO','GET /api/v1/orders · 200 · 34ms'],
+       ['12:03:12','INFO','worker queue processed job_8f12'],
+       ['12:02:57','WARN','Database pool reached 68% utilization'],
+       ['12:02:42','INFO','Redis cache hit ratio 94.8%'],
+       ['12:02:19','INFO','Automated backup snapshot verified'],
+       ['12:01:54','INFO','TLS certificate valid · 72 days remaining']
+      ].map((x,i)=><div className="system-log-row" key={x[0]}><time>{x[0]}</time><b className={x[1].toLowerCase()}>{x[1]}</b><span>{x[2]}</span></div>)}
+    </section>
+   </div>
+  </>}
+  {tab==='Servers & services'&&<section className="panel table-panel"><div className="panel-head"><div><h3>Compute & managed services</h3><p>Provisioned resources for {client.name}</p></div><button className="btn secondary"><Filter size={14}/> Filters</button></div><div className="table-scroll"><table><thead><tr><th>RESOURCE</th><th>TYPE</th><th>REGION</th><th>CPU</th><th>MEMORY</th><th>MONTHLY COST</th><th>STATE</th></tr></thead><tbody>{[['prod-api-01','EC2 · t3.xlarge','Mumbai · ap-south-1a','34%','61%','₹12,400'],['prod-db-01','RDS · db.r6g.large','Mumbai · ap-south-1a','46%','72%','₹9,800'],['worker-queue-02','Droplet · 8 vCPU','Bengaluru · BLR1','28%','48%','₹6,200'],['web-edge-01','Vercel Pro','Global edge','19%','—','₹4,400']].map(r=><tr key={r[0]}>{r.map((v,i)=><td key={i}>{i===0?<b>{v}</b>:i===5?<b>{v}</b>:v}</td>)}<td><span className="status connected">Running</span></td></tr>)}</tbody></table></div></section>}
+  {tab==='Codebase'&&<div className="devtools-grid codebase-grid">
+    <section className="panel file-panel">
+      <div className="panel-head"><div><h3><Folder size={14}/> Codebase explorer</h3><p>Admin-managed repository</p></div><span className="status connected">Read-only demo</span></div>
+      <div className="repo-path">/srv/clients/{client.code.toLowerCase()}/</div>
+      <div className="file-tree">{render(tree)}</div>
+      <div className="file-foot"><ShieldCheck size={12}/> Admin access · audit logging required</div>
+    </section>
+    <section className="panel code-panel">
+      <div className="code-head"><div><FileCode2 size={14}/><b>{file}</b></div><span>DEMO SOURCE</span></div>
+      <pre>{samples[file]||`// ${file}\n// Demo file preview`}</pre>
+      <div className="code-foot"><span>UTF-8</span><span>Read-only preview · connect repository to edit</span></div>
+    </section>
+  </div>}
+  {tab==='Terminal'&&<section className="panel terminal-page">
+    <div className="terminal-page-head">
+      <div>
+        <div className="terminal-title"><Terminal size={16}/><h3>Web terminal</h3><i className="terminal-dot"/></div>
+        <p>Administrative shell workspace · {client.name} · production environment</p>
+      </div>
+      <div className="terminal-tools">
+        <span className="terminal-connection">DEMO SESSION</span>
+        <button className="btn secondary" type="button" onClick={()=>setLines(['cloudledger@northstar-prod:~$ whoami','cloudledger-admin','cloudledger@northstar-prod:~$ uptime','up 42 days, 06:21 · load average: 0.42, 0.51, 0.48'])}>Reset session</button>
+        <button className="btn secondary" type="button" onClick={()=>setLines([])}>Clear</button>
+      </div>
+    </div>
+    <div className="terminal-session-meta"><span><i/> shell: bash</span><span>user: cloudledger-admin</span><span>host: northstar-prod</span><span>path: /srv/clients/{client.code.toLowerCase()}</span></div>
+    <div className="terminal-screen">
+      <div className="terminal-screen-toolbar"><span>TERMINAL OUTPUT</span><span>Use <kbd>Enter</kbd> to execute a demo command</span></div>
+      <div className="terminal-output terminal-output-large">{lines.map((x,i)=><div className={x.startsWith('cloudledger@')?'prompt-line':''} key={i}>{x}</div>)}</div>
+      <form className="terminal-input terminal-input-large" onSubmit={e=>{e.preventDefault();execute()}}>
+        <span>cloudledger@northstar-prod:~$</span>
+        <input autoComplete="off" spellCheck="false" value={cmd} onChange={e=>setCmd(e.target.value)} placeholder="Type a command — try help, free -h, df -h, docker ps"/>
+        <button type="submit"><Play size={14}/><span>Run</span></button>
+      </form>
+    </div>
+    <div className="terminal-shortcuts">
+      <span>QUICK COMMANDS</span>
+      {['help','uptime','top','free -h','df -h','docker ps'].map(x=><button key={x} type="button" onClick={()=>execute(x)}>{x}</button>)}
+    </div>
+    <div className="terminal-safety-note"><ShieldCheck size={14}/><span>This is a simulated terminal for UI demonstration. It does not execute commands on a real server. Production terminal access must run through a secured backend agent with role checks, command policies and audit logging.</span></div>
+  </section>}
   {tab==='Activity log'&&<section className="panel"><div className="panel-head"><div><h3>Operational activity</h3><p>Recent events and deployment actions</p></div></div>{[['12:02:44','Metrics collector','CPU and memory telemetry refreshed'],['11:58:12','Deployment agent','Health check passed for prod-api-01'],['11:42:03','Billing engine','Usage estimate recalculated'],['10:16:48','Admin console','Configuration snapshot generated'],['09:34:21','Backup service','Daily snapshot completed · 18.4 GB']].map(x=><div className="activity-entry" key={x[0]}><span>{x[0]}</span><b>{x[1]}</b><p>{x[2]}</p><span className="status connected">Success</span></div>)}</section>}
   <div className="demo-warning"><ShieldCheck size={14}/> Demo mode: metrics, cost movement, terminal output and repository files are simulated. No production server is connected or controlled by this frontend.</div>
  </div>
 }
-function Metric({label,value,unit,sub,bar,trend}){return <div className="company-metric"><span>{label}</span><b>{value}<small>{unit}</small></b>{bar!==undefined?<><div className="metric-bar"><i style={{width:`${bar}%`}}/></div><em>{sub}</em></>:<em className={trend?'metric-positive':''}>{sub}</em>}</div>}
+function Metric({label,value,unit,sub,bar,trend,tone='neutral'}){return <div className={`company-metric metric-${tone}`}><span>{label}</span><b>{value}<small>{unit}</small></b>{bar!==undefined?<><div className="metric-bar"><i style={{width:`${bar}%`}}/></div><em>{sub}</em></>:<em className={trend?'metric-positive':''}>{sub}</em>}</div>}
 function Tiny({label,value,sub}){return <div className="mini-telemetry"><span>{label}</span><b>{value}</b><small>{sub}</small></div>}
