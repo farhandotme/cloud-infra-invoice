@@ -287,12 +287,42 @@ function CostPlans({ plans, currency }) {
 
 function Invoices({ invoices, currency }) {
   const [cycle, setCycle] = useState('All cycles'); const [status, setStatus] = useState('All statuses');
-  const rows = invoices.filter(invoice => (cycle === 'All cycles' || invoice.cycle === cycle) && (status === 'All statuses' || invoice.status === status));
+  const [query, setQuery] = useState(''); const [from, setFrom] = useState(''); const [to, setTo] = useState(''); const [order, setOrder] = useState('newest');
+  const periodOf = invoice => String(invoice.periodMonth || invoice.issueDate || '').slice(0, 7);
+  const filtersOn = cycle !== 'All cycles' || status !== 'All statuses' || query || from || to || order !== 'newest';
+  const clearFilters = () => { setCycle('All cycles'); setStatus('All statuses'); setQuery(''); setFrom(''); setTo(''); setOrder('newest'); };
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = invoices.filter(invoice => {
+      if (cycle !== 'All cycles' && invoice.cycle !== cycle) return false;
+      if (status !== 'All statuses' && invoice.status !== status) return false;
+      const key = periodOf(invoice);
+      if (from && (!key || key < from)) return false;
+      if (to && (!key || key > to)) return false;
+      if (q && !`${invoice.id || ''} ${invoice.client || ''} ${invoice.cycle || ''} ${invoice.status || ''} ${invoice.date || ''} ${invoice.due || ''} ${invoice.amount ?? ''}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const byPeriod = (a, b) => periodOf(a).localeCompare(periodOf(b));
+    if (order === 'oldest') list.sort(byPeriod);
+    else if (order === 'newest') list.sort((a, b) => byPeriod(b, a));
+    else if (order === 'high') list.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
+    else if (order === 'low') list.sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
+    else if (order === 'due') list.sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')));
+    return list;
+  }, [invoices, cycle, status, query, from, to, order]);
+  const shownTotal = rows.reduce((sum, invoice) => sum + Number(invoice.amount || 0), 0);
   const total = invoices.reduce((sum, invoice) => sum + Number(invoice.amount || 0), 0);
   const collected = invoices.filter(invoice => String(invoice.status).toLowerCase() === 'paid').reduce((sum, invoice) => sum + Number(invoice.amount || 0), 0);
   const outstanding = invoices.filter(invoice => ['pending', 'overdue'].includes(String(invoice.status).toLowerCase())).reduce((sum, invoice) => sum + Number(invoice.amount || 0), 0);
   return <><div className="stat-grid"><StatCard label="Total invoiced" value={money(total, currency)} change={`${invoices.length} invoices`} icon={ReceiptText} foot="published invoices"/><StatCard label="Collected" value={money(collected, currency)} change="Paid invoices" icon={Wallet} foot="recorded payments"/><StatCard label="Outstanding" value={money(outstanding, currency)} change="Pending / overdue" positive={false} icon={Clock3} foot="awaiting payment"/><StatCard label="Invoice count" value={numberText(invoices.length)} change="Stored records" icon={FileText} foot="billing history"/></div>
-    <section className="panel table-panel"><div className="panel-head"><div><h3>Invoice register</h3><p>Invoices published by your cloud provider</p></div></div><div className="invoice-filters"><div className="cycle-tabs">{['All cycles', 'Weekly', 'Monthly', 'Yearly'].map(value => <button key={value} className={cycle === value ? 'on' : ''} onClick={() => setCycle(value)}>{value}</button>)}</div><select value={status} onChange={event => setStatus(event.target.value)}><option>All statuses</option><option>Paid</option><option>Pending</option><option>Overdue</option><option>Draft</option><option>Cancelled</option></select></div><div className="table-scroll"><table><thead><tr><th>INVOICE ID</th><th>CLIENT</th><th>BILLING CYCLE</th><th>ISSUE DATE</th><th>DUE DATE</th><th>TOTAL</th><th>STATUS</th><th>DOCUMENT</th></tr></thead><tbody>{rows.map(invoice => <tr key={invoice._id || invoice.id}><td><b className="linkish">{invoice.id}</b></td><td>{invoice.client}</td><td><span className="plan-pill">{invoice.cycle}</span></td><td>{invoice.date}</td><td>{invoice.due}</td><td><b>{money(invoice.amount, invoice.currency || currency)}</b></td><td><Status status={invoice.status}/></td><td>{invoice.pdfUrl ? <a className="icon-btn small" href={invoice.pdfUrl} target="_blank" rel="noreferrer" title="Open invoice"><ExternalLink size={15}/></a> : invoice._id ? <a className="icon-btn small" href={`${API}/api/public/invoices/${invoice._id}/pdf`} target="_blank" rel="noreferrer" title="Download invoice PDF"><Download size={15}/></a> : '—'}</td></tr>)}</tbody></table>{rows.length === 0 && <div className="no-results">No invoices are available for the selected filters.</div>}</div></section>
+    <section className="panel table-panel"><div className="panel-head"><div><h3>Invoice register</h3><p>{filtersOn ? `Showing ${rows.length} of ${invoices.length} invoices · ${money(shownTotal, currency)}` : 'Invoices published by your cloud provider'}</p></div></div><div className="invoice-filters"><div className="cycle-tabs">{['All cycles', 'Weekly', 'Monthly', 'Yearly'].map(value => <button key={value} className={cycle === value ? 'on' : ''} onClick={() => setCycle(value)}>{value}</button>)}</div><select value={status} onChange={event => setStatus(event.target.value)}><option>All statuses</option><option>Paid</option><option>Pending</option><option>Overdue</option><option>Draft</option><option>Cancelled</option></select></div>
+      <div className="inv-filterbar">
+        <label className="inv-filter search"><Search size={13}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search invoice ID, client, amount…"/></label>
+        <label className="inv-filter"><span>Period from</span><input type="month" value={from} max={to || undefined} onChange={event => setFrom(event.target.value)}/></label>
+        <label className="inv-filter"><span>Period to</span><input type="month" value={to} min={from || undefined} onChange={event => setTo(event.target.value)}/></label>
+        <label className="inv-filter"><span>Sort by</span><select value={order} onChange={event => setOrder(event.target.value)}><option value="newest">Newest period</option><option value="oldest">Oldest period</option><option value="due">Due date</option><option value="high">Amount: high to low</option><option value="low">Amount: low to high</option></select></label>
+        {filtersOn && <button type="button" className="inv-filter-clear" onClick={clearFilters}><X size={13}/> Clear</button>}
+      </div><div className="table-scroll"><table><thead><tr><th>INVOICE ID</th><th>CLIENT</th><th>BILLING CYCLE</th><th>ISSUE DATE</th><th>DUE DATE</th><th>TOTAL</th><th>STATUS</th><th>DOCUMENT</th></tr></thead><tbody>{rows.map(invoice => <tr key={invoice._id || invoice.id}><td><b className="linkish">{invoice.id}</b></td><td>{invoice.client}</td><td><span className="plan-pill">{invoice.cycle}</span></td><td>{invoice.date}</td><td>{invoice.due}</td><td><b>{money(invoice.amount, invoice.currency || currency)}</b></td><td><Status status={invoice.status}/></td><td>{invoice.pdfUrl ? <a className="icon-btn small" href={invoice.pdfUrl} target="_blank" rel="noreferrer" title="Open invoice"><ExternalLink size={15}/></a> : invoice._id ? <a className="icon-btn small" href={`${API}/api/public/invoices/${invoice._id}/pdf`} target="_blank" rel="noreferrer" title="Download invoice PDF"><Download size={15}/></a> : '—'}</td></tr>)}</tbody></table>{rows.length === 0 && <div className="no-results">No invoices are available for the selected filters.</div>}</div></section>
     <div className="info-banner"><ShieldCheck size={18}/><div><b>Billing records</b><p>Invoice records and document links are published by your cloud provider. Contact support if you need a copy or clarification.</p></div></div></>;
 }
 

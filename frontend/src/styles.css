@@ -456,3 +456,15 @@ tbody tr:hover{background:#171d25}
 .txn-summary b{font-size:19px;color:#edf1f5}
 .txn-summary em{font-style:normal;font-size:10px;color:#8993a0}
 @media(max-width:900px){.txn-summary{grid-template-columns:1fr 1fr}}
+
+/* Customer invoice register: search / period / sort bar */
+.inv-filterbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:0 18px 14px}
+.inv-filter{display:flex;flex-direction:column;gap:5px;min-width:130px;flex:1 1 130px}
+.inv-filter>span{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#8993a0;font-weight:700}
+.inv-filter input,.inv-filter select{width:100%;min-height:34px;padding:7px 10px;font-size:11px;border-radius:8px;border:1px solid #35414e;background:#0d141c;color:#edf1f5;outline:none;color-scheme:dark}
+.inv-filter input:focus,.inv-filter select:focus{border-color:#7f8b9a}
+.inv-filter.search{position:relative;flex:2 1 240px;justify-content:flex-end}
+.inv-filter.search svg{position:absolute;left:10px;bottom:11px;color:#8993a0;pointer-events:none}
+.inv-filter.search input{padding-left:30px}
+.inv-filter-clear{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:0 12px;border-radius:8px;border:1px solid #35414e;background:#151b23;color:#d2d7de;font-size:11px;cursor:pointer}
+.inv-filter-clear:hover{border-color:#7f8b9a}
