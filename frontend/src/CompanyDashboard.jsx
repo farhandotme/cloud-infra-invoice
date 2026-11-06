@@ -1,175 +1,175 @@
-import React,{useEffect,useMemo,useState} from 'react';
-import {AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer} from 'recharts';
-import {Server,Cpu,MemoryStick,HardDrive,Network,Terminal,MapPin,Folder,FolderOpen,FileCode2,ChevronRight,Play,RotateCw,ShieldCheck,Activity,ArrowUpRight,Filter,MoreHorizontal} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AreaChart, Area, Line, ReferenceLine, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  Server, Cpu, MemoryStick, HardDrive, Network, Terminal, MapPin, Folder,
+  FolderOpen, FileCode2, ChevronRight, ShieldCheck, Activity, ArrowUpRight,
+  Filter, MoreHorizontal, CalendarDays
+} from 'lucide-react';
+import { makeLiveUsageSeries, makeContractAccrualHistory, getContractAccrualRangeBudget } from './liveTelemetry.js';
+import { getClientPricing, getBillingAccrual, buildEstimatedServices, isUsableResourceRecord } from './pricingModel.js';
 
-const cash=n=>'₹'+Math.round(n).toLocaleString('en-IN');
-const makeHistory=(range,seed)=>{
- const n=range==='1D'?24:range==='1W'?28:range==='1M'?30:12;
- return Array.from({length:n},(_,i)=>({label:range==='1D'?`${String(i).padStart(2,'0')}:00`:range==='1Y'?['Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov'][i]:range==='1M'?`${i+1}`:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i%7],cost:Math.max(300,850+i*(range==='1Y'?14:range==='1M'?7:2)+Math.sin((i+seed)*.8)*120+((i*13+seed)%9)*19),budget:1200+i*4}));
+const cash = (value, currency = 'INR') => {
+  try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(value || 0)); }
+  catch { return `${currency} ${Math.round(Number(value || 0)).toLocaleString('en-IN')}`; }
 };
-const tree=[{id:'root',name:'northstar-commerce',folder:true,children:[{id:'app',name:'app',folder:true,children:[{id:'src',name:'src',folder:true,children:[{name:'server.js'},{name:'routes.js'},{name:'billing.service.ts'}]},{id:'public',name:'public',folder:true,children:[{name:'index.html'}]},{name:'package.json'},{name:'Dockerfile'}]},{id:'infra',name:'infrastructure',folder:true,children:[{name:'docker-compose.yml'},{name:'nginx.conf'}]},{name:'.env.example'},{name:'README.md'}]}];
-const samples={
- 'server.js':"import express from 'express';\nimport { connectDatabase } from './database.js';\n\nconst app = express();\napp.use(express.json());\n\napp.get('/health', (_req, res) => {\n  res.json({ status: 'ok', service: 'northstar-api' });\n});\n\napp.listen(process.env.PORT || 4000);",
- 'routes.js':"import { Router } from 'express';\nconst router = Router();\n\nrouter.get('/orders', async (req, res) => {\n  // Fetch tenant-scoped orders\n  res.json({ data: [], total: 0 });\n});\n\nexport default router;",
- 'billing.service.ts':"export const calculateMonthlyCost = (usage, rates) => {\n  const compute = usage.vcpuHours * rates.vcpuHour;\n  const memory = usage.gbHours * rates.gbHour;\n  const storage = usage.storageGb * rates.storageGb;\n  return compute + memory + storage + rates.maintenance;\n};",
- 'Dockerfile':"FROM node:22-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci --omit=dev\nCOPY . .\nEXPOSE 4000\nCMD [\"node\", \"src/server.js\"]",
- 'docker-compose.yml':"services:\n  api:\n    build: ./app\n    restart: unless-stopped\n    ports:\n      - \"4000:4000\"\n    env_file: .env\n  redis:\n    image: redis:7-alpine\n    restart: unless-stopped",
- 'nginx.conf':"server {\n  listen 443 ssl http2;\n  server_name api.northstar.example;\n  location / {\n    proxy_pass http://127.0.0.1:4000;\n    proxy_set_header Host $host;\n  }\n}",
- 'package.json':"{\n  \"name\": \"northstar-commerce-api\",\n  \"version\": \"2.4.1\",\n  \"scripts\": { \"start\": \"node src/server.js\" },\n  \"dependencies\": { \"express\": \"^4.21.0\" }\n}",
- 'README.md':"# Northstar Commerce API\n\nProduction API service managed by MindBoxx Technologies.\n\n- Runtime: Node.js 22\n- Region: ap-south-1\n- Process manager: Docker\n- Health endpoint: /health"
+const cashPrecise = (value, currency = 'INR') => {
+  try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0)); }
+  catch { return `${currency} ${Number(value || 0).toFixed(2)}`; }
 };
-export default function CompanyDashboard({clients,selectedClient,setSelectedClient}){
- const [range,setRange]=useState('1D'),[tab,setTab]=useState('Overview'),[tick,setTick]=useState(0);
- const [cmd,setCmd]=useState(''),[lines,setLines]=useState(['cloudledger@northstar-prod:~$ whoami','cloudledger-admin','cloudledger@northstar-prod:~$ uptime','up 42 days, 06:21 · load average: 0.42, 0.51, 0.48']);
- const [open,setOpen]=useState(['root','app','src']),[file,setFile]=useState('server.js');
- const client=selectedClient||clients[0],history=useMemo(()=>makeHistory(range,client.code.length+tick),[range,client.code,tick]);
- useEffect(()=>{const t=setInterval(()=>setTick(v=>v+1),7000);return()=>clearInterval(t)},[]);
- const cpu=34+(tick*7%21),ram=61+(tick*5%17),disk=52+(tick*3%9),net=18+(tick*11%29),daily=client.monthly/30*(1+Math.sin(tick*.4)*.025);
- const execute=(command=cmd)=>{let out='';const c=command.trim();if(!c)return;if(c==='clear'){setLines([]);setCmd('');return;}const map={
-  help:'Demo commands: whoami, pwd, ls, df -h, free -h, uptime, docker ps, docker stats, ps aux, top, systemctl status nginx, ss -tulpn, journalctl -n 8, curl /health, vmstat',
-  whoami:'cloudledger-admin',
-  pwd:`/srv/clients/${client.code.toLowerCase()}`,
-  ls:'app  infrastructure  logs  backups  .env.example  README.md',
-  'ls -la':'drwxr-xr-x  app  infrastructure  logs  backups\n-rw-------  .env.example\n-rw-r--r--  README.md',
-  'df -h':'Filesystem      Size  Used  Avail  Use%  Mounted on\n/dev/nvme0n1    120G   62G    58G   52%  /\n/dev/nvme1n1    500G  188G   312G   38%  /data',
-  'free -h':`Mem: 15.6Gi total  ${(ram*15.6/100).toFixed(1)}Gi used  ${(15.6-ram*15.6/100).toFixed(1)}Gi free  2.0Gi cache\nSwap: 2.0Gi total  0.2Gi used  1.8Gi free`,
-  uptime:'up 42 days, 06:21 · load average: 0.42, 0.51, 0.48',
-  'docker ps':'CONTAINER ID  IMAGE               STATUS          PORTS\n8c21a45f      northstar-api:2.4.1  Up 12 days      4000/tcp\n6fb33dc1      redis:7-alpine       Up 42 days      6379/tcp\n2aa7b4c9      nginx:1.27           Up 42 days      80, 443/tcp\n77c1bd8a      worker:2.4.1         Up 6 days       -',
-  'docker stats':`CONTAINER       CPU %   MEM USAGE / LIMIT   NET I/O\nnorthstar-api   ${cpu}%    1.8GiB / 4GiB       2.4GB / 1.9GB\nredis           3.2%    312MiB / 1GiB       840MB / 1.1GB\nnginx           1.1%    86MiB / 512MiB      4.2GB / 3.8GB`,
-  'ps aux':'USER       PID   %CPU  %MEM  COMMAND\nnode       1842  12.4  10.8  node src/server.js\npostgres   928   8.2   18.4  postgres: checkpointer\nredis      1055  2.1   2.0   redis-server\nnginx      1102  0.8   0.6   nginx: worker process',
-  top:`CPU ${cpu}%  MEM ${ram}%  LOAD 0.42  TASKS 128  THREADS 436`,
-  'systemctl status nginx':'● nginx.service - A high performance web server\n   Active: active (running) since 42 days ago\n   Main PID: 1102 · Workers: 4\n   Config: /etc/nginx/nginx.conf',
-  'ss -tulpn':'Netid  State   Local Address:Port\ntcp    LISTEN  0.0.0.0:22\ntcp    LISTEN  0.0.0.0:80\ntcp    LISTEN  0.0.0.0:443\ntcp    LISTEN  127.0.0.1:4000\ntcp    LISTEN  127.0.0.1:5432',
-  'journalctl -n 8':'11:58:12 nginx[1102]: upstream health check passed\n11:57:48 node[1842]: GET /api/v1/orders 200 34ms\n11:57:31 worker[2091]: queue job completed id=job_8f12\n11:56:54 postgres[928]: checkpoint complete\n11:56:11 redis[1055]: background saving terminated',
-  'curl /health':'HTTP/1.1 200 OK\n{ "status": "ok", "service": "northstar-api", "region": "ap-south-1" }',
-  vmstat:'procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----\nr  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id\n2  0  2048 4180000 180000 2100000    0    0    12    34  420  680 18  7 75'
-};out=map[c]||`bash: ${c}: demo shell only — no production host is connected`;setLines(v=>[...v,`cloudledger@northstar-prod:~$ ${c}`,out]);setCmd('');};
- const render=(nodes,depth=0)=><>{nodes.map((n,i)=><React.Fragment key={n.id||n.name+i}><button className={`tree-node ${file===n.name?'picked':''}`} style={{paddingLeft:10+depth*14}} onClick={()=>n.folder?setOpen(v=>v.includes(n.id)?v.filter(x=>x!==n.id):[...v,n.id]):setFile(n.name)}>{n.folder?(open.includes(n.id)?<FolderOpen size={13}/>:<Folder size={13}/>):<FileCode2 size={13}/>}<span>{n.name}</span>{n.folder&&<ChevronRight className={open.includes(n.id)?'rotated':''} size={12}/>}</button>{n.children&&open.includes(n.id)&&render(n.children,depth+1)}</React.Fragment>)}</>;
- return <div className="company-workspace">
-  <div className="company-select-bar"><div><i className="live-dot"/> CLIENT ENVIRONMENT <b>PRODUCTION</b></div><select value={client.code} onChange={e=>setSelectedClient(clients.find(c=>c.code===e.target.value))}>{clients.map(c=><option key={c.code} value={c.code}>{c.name} · {c.code}</option>)}</select></div>
-  <div className="company-hero"><div><div className="company-kicker">CLIENT INFRASTRUCTURE / {client.code}</div><h2>{client.name}</h2><p className="hero-meta"><i className="healthy-pulse"/> Production environment healthy <span>·</span> Linux x86_64</p>
-      <div className="deployment-tags">
-        <span className="location-tag"><MapPin size={12}/> Mumbai, India</span>
-        <span className="region-tag">AWS Asia Pacific · <b>ap-south-1</b></span>
-        <span className="zone-tag">Availability zone · ap-south-1a</span>
-      </div></div><div className="hero-actions"><span className="status connected">All services operational</span><button className="btn secondary" onClick={()=>setTick(v=>v+1)}><RotateCw size={13}/> Refresh metrics</button></div></div>
-  <div className="company-metrics">
-   <Metric tone="cost" label="LIVE RUN-RATE" value={cash(daily)} unit="/ day" sub="Estimated live cost" trend/>
-   <Metric tone="cpu" label="CPU UTILIZATION" value={cpu} unit="%" sub="8 vCPU allocated" bar={cpu}/>
-   <Metric tone="memory" label="MEMORY USAGE" value={ram} unit="%" sub="9.8 / 16 GB used" bar={ram}/>
-   <Metric tone="disk" label="DISK UTILIZATION" value={disk} unit="%" sub="62 / 120 GB used" bar={disk}/>
-   <Metric tone="network" label="NETWORK I/O" value={net} unit=" MB/s" sub="Ingress 18.4 · Egress 9.2"/>
-  </div>
-  <div className="company-tabs">{['Overview','Servers & services','Codebase','Terminal','Activity log'].map(x=><button className={tab===x?'active':''} onClick={()=>setTab(x)} key={x}>{x}</button>)}</div>
-  {tab==='Overview'&&<><div className="company-grid"><section className="panel spend-panel"><div className="panel-head"><div><h3>Infrastructure cost movement</h3><p>Spend history and budget guide · {client.name}</p></div><span className="live-pill">● LIVE</span></div><div className="spend-summary"><div><small>Current period spend</small><b>{cash(history.reduce((a,x)=>a+x.cost,0))}</b></div><div><small>Projected monthly</small><b>{cash(client.monthly)}</b></div><div><small>Budget utilization</small><b>72.4%</b></div></div><div className="range-tabs">{[['1D','Daily'],['1W','Weekly'],['1M','Monthly'],['1Y','Yearly']].map(([v,l])=><button key={v} className={range===v?'chosen':''} onClick={()=>setRange(v)}>{l}</button>)}</div><div className="spend-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={history} margin={{top:10,right:8,left:-18,bottom:0}}><defs><linearGradient id="spendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#c8cdd5" stopOpacity={.22}/><stop offset="100%" stopColor="#c8cdd5" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#edf0f4" vertical={false}/><XAxis dataKey="label" tick={{fontSize:9,fill:'#929baa'}} axisLine={false} tickLine={false} interval="preserveStartEnd"/><YAxis tick={{fontSize:9,fill:'#929baa'}} axisLine={false} tickLine={false} tickFormatter={v=>`₹${Math.round(v/100)/10}k`}/><Tooltip formatter={v=>cash(v)}/><Area type="monotone" dataKey="cost" name="Spend" stroke="#c8cdd5" strokeWidth={2.2} fill="url(#spendFill)"/><Area type="monotone" dataKey="budget" name="Budget guide" stroke="#747e8b" strokeDasharray="5 5" fill="transparent"/></AreaChart></ResponsiveContainer></div><div className="chart-bottom"><span><i className="live-dot"/> Refreshes every 7 seconds · simulated telemetry</span><span>History · {range}</span></div></section>
-   <section className="panel"><div className="panel-head"><div><h3>Server health</h3><p>Primary production node</p></div><span className="status connected">Healthy</span></div><div className="server-identity"><div className="server-icon"><Server size={19}/></div><div><b>prod-api-01</b><small>AWS EC2 · t3.xlarge · Mumbai region</small></div></div><div className="server-specs">{[['Cloud provider','Amazon Web Services'],['Region','Mumbai, India · ap-south-1'],['Availability zone','ap-south-1a'],['Operating system','Ubuntu 24.04 LTS'],['Public IPv4','13.201.84.XX'],['Uptime','42d 06h 21m'],['Instance state','Running']].map(x=><div key={x[0]}><span>{x[0]}</span><b>{x[1]}</b></div>)}</div><button className="text-link" onClick={()=>setTab('Servers & services')}>View full server details <ArrowUpRight size={13}/></button></section></div>
-   <div className="company-grid"><section className="panel"><div className="panel-head"><div><h3>Resource telemetry</h3><p>Operational signals · rolling sample</p></div><span className="status connected">Monitoring</span></div><div className="telemetry-grid"><Tiny label="CPU LOAD" value={`${cpu}%`} sub="8 vCPU"/><Tiny label="RAM PRESSURE" value={`${ram}%`} sub="16 GB total"/><Tiny label="DISK I/O" value="142 MB/s" sub="NVMe volume"/><Tiny label="NETWORK" value={`${net} MB/s`} sub="Ingress + egress"/></div></section><section className="panel"><div className="panel-head"><div><h3>Cost breakdown</h3><p>Estimated allocation · current month</p></div><span className="status pending">Estimate</span></div>{[['Compute instances',48],['Managed database',23],['Storage & backups',12],['Network & egress',7],['Maintenance & support',10]].map(([label,p])=><div className="breakdown-row" key={label}><span>{label}</span><b>{cash(client.monthly*p/100)}</b><i><em style={{width:`${p}%`}}/></i></div>)}</section></div>
-   <div className="operations-grid">
-    <section className="panel live-terminal-card">
-      <div className="panel-head"><div><h3><Terminal size={14}/> Live server terminal</h3><p>Quick admin shell · {client.name} · /srv/clients/{client.code.toLowerCase()}</p></div><div className="terminal-card-state"><i/> SESSION READY</div></div>
-      <div className="terminal-card-toolbar"><span>cloudledger-admin@northstar-prod</span><span>bash · Ubuntu 24.04 · ap-south-1</span><button type="button" onClick={()=>setLines([])}>Clear output</button></div>
-      <div className="terminal-output overview-terminal-output">{lines.slice(-8).map((x,i)=><div className={x.startsWith('cloudledger@')?'prompt-line':''} key={i}>{x}</div>)}</div>
-      <form className="terminal-input overview-terminal-input" onSubmit={e=>{e.preventDefault();execute()}}><span>›</span><input value={cmd} onChange={e=>setCmd(e.target.value)} placeholder="Run a command — try docker ps, free -h, journalctl -n 8"/><button type="submit"><Play size={13}/> Run</button></form>
-      <div className="terminal-card-shortcuts">{['top','docker ps','docker stats','df -h','free -h','journalctl -n 8'].map(c=><button type="button" key={c} onClick={()=>execute(c)}>{c}</button>)}</div>
-    </section>
-    <section className="panel workload-panel">
-      <div className="panel-head"><div><h3>Production workload</h3><p>Application traffic and service pressure</p></div><span className="status connected">Active</span></div>
-      <div className="workload-kpis"><div><small>HTTP REQUESTS</small><b>{(246+tick%38).toLocaleString('en-IN')}<em>/sec</em></b></div><div><small>P95 LATENCY</small><b>{82+tick%23}<em>ms</em></b></div><div><small>ERROR RATE</small><b>0.12<em>%</em></b></div><div><small>ACTIVE SESSIONS</small><b>{132+tick%24}</b></div></div>
-      <div className="workload-separator"/>
-      <div className="workload-row"><span>Database connections</span><b>{46+tick%8} / 100</b><i><em style={{width:`${46+tick%8}%`}}/></i></div>
-      <div className="workload-row"><span>Redis cache hit ratio</span><b>94.8%</b><i><em style={{width:'94.8%'}}/></i></div>
-      <div className="workload-row"><span>Background queue depth</span><b>{18+tick%14} jobs</b><i><em style={{width:`${24+tick%12}%`}}/></i></div>
-      <div className="workload-footer"><span>Worker concurrency <b>12</b></span><span>Scheduled jobs <b>08</b></span><span>Open connections <b>318</b></span></div>
-    </section>
-   </div>
-   <div className="technical-overview-grid">
-    <section className="panel technical-table-panel">
-      <div className="panel-head"><div><h3>Running containers & services</h3><p>Container runtime · Docker Engine 27.3.1 · 5 active / 5 total</p></div><span className="status connected">All running</span></div>
-      <div className="table-scroll"><table><thead><tr><th>CONTAINER / SERVICE</th><th>IMAGE / RUNTIME</th><th>CPU</th><th>MEMORY</th><th>RESTARTS</th><th>STATUS</th></tr></thead><tbody>
-       {[
-        ['northstar-api','northstar-api:2.4.1',`${cpu}%`,'1.8 / 4 GB','0'],
-        ['postgres-primary','postgres:16-alpine','8.2%','2.9 / 8 GB','0'],
-        ['redis-cache','redis:7-alpine','3.2%','312 / 1024 MB','0'],
-        ['nginx-proxy','nginx:1.27-alpine','1.1%','86 / 512 MB','1'],
-        ['queue-worker','node:22-alpine','5.6%','640 / 2048 MB','0']
-       ].map(r=><tr key={r[0]}><td><b>{r[0]}</b></td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td><span className="status connected">Running</span></td></tr>)}
-      </tbody></table></div>
-    </section>
-    <section className="panel runtime-panel">
-      <div className="panel-head"><div><h3>Runtime & host configuration</h3><p>Production node specifications</p></div><span className="status connected">Provisioned</span></div>
-      <div className="runtime-grid">{[
-       ['INSTANCE TYPE','t3.xlarge'],['VCPU','4 cores / 8 threads'],['MEMORY','16 GiB DDR4'],['ROOT VOLUME','120 GB gp3 SSD'],['DATA VOLUME','500 GB gp3 SSD'],['OS IMAGE','Ubuntu Server 24.04 LTS'],['NODE.JS','v22.11.0'],['DATABASE','PostgreSQL 16.4'],['DOCKER ENGINE','27.3.1'],['KERNEL','6.8.0-52-generic'],['PRIVATE SUBNET','10.0.12.0/24'],['SECURITY GROUP','sg-prod-api-web']
-      ].map(r=><div key={r[0]}><small>{r[0]}</small><b>{r[1]}</b></div>)}</div>
-    </section>
-   </div>
-   <div className="technical-overview-grid">
-    <section className="panel deploy-panel">
-      <div className="panel-head"><div><h3>Deployment pipeline</h3><p>Recent releases and build activity</p></div><span className="status connected">CI/CD healthy</span></div>
-      {[
-       ['v2.4.1','Production release · main','04 Nov · 09:42','Deployed'],
-       ['v2.4.0','Database index optimization','03 Nov · 18:16','Deployed'],
-       ['v2.3.9','Worker concurrency update','02 Nov · 14:08','Deployed']
-      ].map(x=><div className="deploy-row" key={x[0]}><span className="deploy-check">✓</span><div><b>{x[0]}</b><small>{x[1]}</small></div><time>{x[2]}</time><span className="deploy-state">{x[3]}</span></div>)}
-      <div className="deploy-footer"><span>Build success rate <b>98.7%</b></span><span>Last build <b>2m 14s</b></span><span>Rollback point <b>v2.4.0</b></span></div>
-    </section>
-    <section className="panel system-log-panel">
-      <div className="panel-head"><div><h3>System event stream</h3><p>Recent application and infrastructure logs</p></div><span className="live-pill">● STREAM</span></div>
-      {[
-       ['12:03:18','INFO','GET /api/v1/orders · 200 · 34ms'],
-       ['12:03:12','INFO','worker queue processed job_8f12'],
-       ['12:02:57','WARN','Database pool reached 68% utilization'],
-       ['12:02:42','INFO','Redis cache hit ratio 94.8%'],
-       ['12:02:19','INFO','Automated backup snapshot verified'],
-       ['12:01:54','INFO','TLS certificate valid · 72 days remaining']
-      ].map((x,i)=><div className="system-log-row" key={x[0]}><time>{x[0]}</time><b className={x[1].toLowerCase()}>{x[1]}</b><span>{x[2]}</span></div>)}
-    </section>
-   </div>
-  </>}
-  {tab==='Servers & services'&&<section className="panel table-panel"><div className="panel-head"><div><h3>Compute & managed services</h3><p>Provisioned resources for {client.name}</p></div><button className="btn secondary"><Filter size={14}/> Filters</button></div><div className="table-scroll"><table><thead><tr><th>RESOURCE</th><th>TYPE</th><th>REGION</th><th>CPU</th><th>MEMORY</th><th>MONTHLY COST</th><th>STATE</th></tr></thead><tbody>{[['prod-api-01','EC2 · t3.xlarge','Mumbai · ap-south-1a','34%','61%','₹12,400'],['prod-db-01','RDS · db.r6g.large','Mumbai · ap-south-1a','46%','72%','₹9,800'],['worker-queue-02','Droplet · 8 vCPU','Bengaluru · BLR1','28%','48%','₹6,200'],['web-edge-01','Vercel Pro','Global edge','19%','—','₹4,400']].map(r=><tr key={r[0]}>{r.map((v,i)=><td key={i}>{i===0?<b>{v}</b>:i===5?<b>{v}</b>:v}</td>)}<td><span className="status connected">Running</span></td></tr>)}</tbody></table></div></section>}
-  {tab==='Codebase'&&<div className="devtools-grid codebase-grid">
-    <section className="panel file-panel">
-      <div className="panel-head"><div><h3><Folder size={14}/> Codebase explorer</h3><p>Admin-managed repository</p></div><span className="status connected">Read-only demo</span></div>
-      <div className="repo-path">/srv/clients/{client.code.toLowerCase()}/</div>
-      <div className="file-tree">{render(tree)}</div>
-      <div className="file-foot"><ShieldCheck size={12}/> Admin access · audit logging required</div>
-    </section>
-    <section className="panel code-panel">
-      <div className="code-head"><div><FileCode2 size={14}/><b>{file}</b></div><span>DEMO SOURCE</span></div>
-      <pre>{samples[file]||`// ${file}\n// Demo file preview`}</pre>
-      <div className="code-foot"><span>UTF-8</span><span>Read-only preview · connect repository to edit</span></div>
-    </section>
-  </div>}
-  {tab==='Terminal'&&<section className="panel terminal-page">
-    <div className="terminal-page-head">
-      <div>
-        <div className="terminal-title"><Terminal size={16}/><h3>Web terminal</h3><i className="terminal-dot"/></div>
-        <p>Administrative shell workspace · {client.name} · production environment</p>
-      </div>
-      <div className="terminal-tools">
-        <span className="terminal-connection">DEMO SESSION</span>
-        <button className="btn secondary" type="button" onClick={()=>setLines(['cloudledger@northstar-prod:~$ whoami','cloudledger-admin','cloudledger@northstar-prod:~$ uptime','up 42 days, 06:21 · load average: 0.42, 0.51, 0.48'])}>Reset session</button>
-        <button className="btn secondary" type="button" onClick={()=>setLines([])}>Clear</button>
-      </div>
-    </div>
-    <div className="terminal-session-meta"><span><i/> shell: bash</span><span>user: cloudledger-admin</span><span>host: northstar-prod</span><span>path: /srv/clients/{client.code.toLowerCase()}</span></div>
-    <div className="terminal-screen">
-      <div className="terminal-screen-toolbar"><span>TERMINAL OUTPUT</span><span>Use <kbd>Enter</kbd> to execute a demo command</span></div>
-      <div className="terminal-output terminal-output-large">{lines.map((x,i)=><div className={x.startsWith('cloudledger@')?'prompt-line':''} key={i}>{x}</div>)}</div>
-      <form className="terminal-input terminal-input-large" onSubmit={e=>{e.preventDefault();execute()}}>
-        <span>cloudledger@northstar-prod:~$</span>
-        <input autoComplete="off" spellCheck="false" value={cmd} onChange={e=>setCmd(e.target.value)} placeholder="Type a command — try help, free -h, df -h, docker ps"/>
-        <button type="submit"><Play size={14}/><span>Run</span></button>
-      </form>
-    </div>
-    <div className="terminal-shortcuts">
-      <span>QUICK COMMANDS</span>
-      {['help','uptime','top','free -h','df -h','docker ps'].map(x=><button key={x} type="button" onClick={()=>execute(x)}>{x}</button>)}
-    </div>
-    <div className="terminal-safety-note"><ShieldCheck size={14}/><span>This is a simulated terminal for UI demonstration. It does not execute commands on a real server. Production terminal access must run through a secured backend agent with role checks, command policies and audit logging.</span></div>
-  </section>}
-  {tab==='Activity log'&&<section className="panel"><div className="panel-head"><div><h3>Operational activity</h3><p>Recent events and deployment actions</p></div></div>{[['12:02:44','Metrics collector','CPU and memory telemetry refreshed'],['11:58:12','Deployment agent','Health check passed for prod-api-01'],['11:42:03','Billing engine','Usage estimate recalculated'],['10:16:48','Admin console','Configuration snapshot generated'],['09:34:21','Backup service','Daily snapshot completed · 18.4 GB']].map(x=><div className="activity-entry" key={x[0]}><span>{x[0]}</span><b>{x[1]}</b><p>{x[2]}</p><span className="status connected">Success</span></div>)}</section>}
-  <div className="demo-warning"><ShieldCheck size={14}/> Demo mode: metrics, cost movement, terminal output and repository files are simulated. No production server is connected or controlled by this frontend.</div>
- </div>
+const dateText = value => value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const timeText = value => value ? new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
+const numberText = value => Number(value || 0).toLocaleString('en-IN');
+const displayNumber = value => value === undefined || value === null || value === '' ? '—' : numberText(value);
+const avg = (rows, key) => { const values = rows.map(row => row[key]).filter(value => value !== undefined && value !== null && value !== '').map(Number).filter(Number.isFinite); return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0; };
+
+const compactCash = (value, currency = 'INR') => {
+  try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 }).format(Number(value || 0)); }
+  catch { return cash(value, currency); }
+};
+
+function SpendTooltip({ active, payload, label, currency = 'INR' }) {
+  if (!active || !payload?.length) return null;
+  const actual = payload.find(item => item.dataKey === 'cost' && item.value !== null && item.value !== undefined);
+  const projected = payload.find(item => item.dataKey === 'projection' && item.value !== null && item.value !== undefined);
+  const showProjected = projected && (!actual || Math.abs(Number(projected.value) - Number(actual.value)) > 0.01);
+  const point = payload[0]?.payload;
+  const timestampLabel = label === '24:00'
+    ? 'Day end · 24:00'
+    : point?.timestamp
+      ? new Date(point.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+      : label;
+  return <div className="spend-chart-tooltip">
+    <strong>{timestampLabel}</strong>
+    {actual && <div><span><i className="actual-dot"/> Accrued so far</span><b>{cashPrecise(actual.value, currency)}</b></div>}
+    {showProjected && label !== '24:00' && <div><span><i className="forecast-dot"/> Day-end run-rate</span><b>{cashPrecise(projected.value, currency)}</b></div>}
+    {projected && label === '24:00' && <div><span><i className="forecast-dot"/> Full-day allocation</span><b>{cashPrecise(projected.value, currency)}</b></div>}
+  </div>;
 }
-function Metric({label,value,unit,sub,bar,trend,tone='neutral'}){return <div className={`company-metric metric-${tone}`}><span>{label}</span><b>{value}<small>{unit}</small></b>{bar!==undefined?<><div className="metric-bar"><i style={{width:`${bar}%`}}/></div><em>{sub}</em></>:<em className={trend?'metric-positive':''}>{sub}</em>}</div>}
-function Tiny({label,value,sub}){return <div className="mini-telemetry"><span>{label}</span><b>{value}</b><small>{sub}</small></div>}
+
+export default function CompanyDashboard({
+  clients = [], selectedClient, setSelectedClient, resources = [], profile = {},
+  deployments = [], runtimeSpecs = [], codebaseFiles = [], terminalEntries = [], activities = [], contentBlocks = [], currency = 'INR'
+}) {
+  const [range, setRange] = useState('1D');
+  const [tab, setTab] = useState('Overview');
+  const [fileId, setFileId] = useState('');
+  const [tick, setTick] = useState(0);
+  const [billingTick, setBillingTick] = useState(() => Date.now());
+  const client = selectedClient;
+  const clientResources = resources.filter(resource => !resource.clientCode || resource.clientCode === client?.code);
+  const resourceMonthlyCost = clientResources.reduce((sum, resource) => sum + Number(resource.monthlyCost || 0), 0);
+  const pricing = getClientPricing(client || {});
+  const monthlyCost = Number(pricing.monthlyCost || resourceMonthlyCost || 0);
+  const capacity = pricing.estimatedCapacity;
+
+  // This sample telemetry rolls forward automatically, like the original demo.
+  // Admins enter the client's contract amount and billing cycle—not cost-chart points.
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick(value => value + 1), 7000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // The cost counter follows wall-clock time, not a full-day flat amount.
+  useEffect(() => {
+    const timer = window.setInterval(() => setBillingTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const liveMetrics = useMemo(() => makeLiveUsageSeries(tick, '24 hours', client?.code || 'client', monthlyCost), [tick, client?.code, monthlyCost]);
+  const latest = liveMetrics[liveMetrics.length - 1] || {};
+  const cpu = avg(liveMetrics, 'cpu');
+  const ram = avg(liveMetrics, 'memory');
+  const disk = avg(liveMetrics, 'diskPercent');
+  const net = avg(liveMetrics, 'network');
+  const cpuUsedCores = capacity.vcpu * cpu / 100;
+  const memoryUsedGb = capacity.memoryGb * ram / 100;
+  const diskUsedGb = capacity.diskGb * disk / 100;
+  const billingNow = new Date(billingTick);
+  const billingAccrual = getBillingAccrual(client || {}, billingNow);
+  const hasRunRate = Number(pricing.contractAmount) > 0;
+  const healthScore = Number(latest.healthScore || 0);
+  const healthy = healthScore >= 80 ? 'Healthy' : 'Needs review';
+  const history = useMemo(
+    () => makeContractAccrualHistory(range, client || {}, billingNow),
+    [range, billingTick, client?.code, pricing.billingCycle, pricing.monthlyCost, pricing.yearlyCost]
+  );
+  const rangeBudget = useMemo(() => getContractAccrualRangeBudget(range, client || {}, billingNow), [range, billingTick, client?.code, pricing.billingCycle, pricing.monthlyCost, pricing.yearlyCost]);
+  const nowPoint = history.find(point => point.isNow) || history[history.length - 1];
+  const chosenFile = codebaseFiles.find(item => item._id === fileId) || codebaseFiles[0] || null;
+  const savedServiceResources = clientResources.filter(resource => isUsableResourceRecord(resource) && /container|service|docker|database|cache|worker|mongo|redis|api|web/i.test(`${resource.category || ''} ${resource.name || ''}`));
+  const serviceResources = savedServiceResources.length ? savedServiceResources : buildEstimatedServices(client || {}, latest);
+  const runtimeLabel = profile.containerRuntime || (serviceResources.length ? 'Docker · Node.js 22 · MongoDB 8 · Redis 7' : 'Runtime not configured');
+  const logRows = terminalEntries.length ? terminalEntries : activities;
+  const environment = profile.environment || profile.environmentName || 'Environment not configured';
+  const provider = profile.provider || client?.provider || 'Cloud provider not specified';
+  const region = profile.regionName || profile.region || client?.region || 'Region not specified';
+  const regionCode = profile.regionCode || '';
+  const healthLabel = healthy;
+  const uptime = profile.uptime || '—';
+
+  if (!client) return <div className="empty-state"><div className="empty-icon"><Server/></div><h2>No client workspace selected</h2><p>Your cloud administrator has not configured a customer account yet.</p></div>;
+
+  return <div className="company-workspace">
+    <div className="company-select-bar"><div><i className="live-dot"/> CLIENT ENVIRONMENT <b>{environment.toUpperCase()}</b></div><select value={client.code} onChange={event => { const next = clients.find(item => item.code === event.target.value); if (next) setSelectedClient(next); }}>{clients.map(item => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}</select></div>
+    <div className="company-hero"><div><div className="company-kicker">CLIENT INFRASTRUCTURE / {client.code}</div><h2>{client.name}</h2><p className="hero-meta"><i className="healthy-pulse"/> {profile.environmentStatus || healthLabel} <span>·</span> {profile.operatingSystem || 'Operating system not configured'}</p><div className="deployment-tags"><span className="location-tag"><MapPin size={12}/> {profile.location || region}</span><span className="region-tag">{provider}{regionCode ? <> · <b>{regionCode}</b></> : null}</span>{profile.availabilityZone && <span className="zone-tag">Availability zone · {profile.availabilityZone}</span>}</div></div><div className="hero-actions"><span className={`status ${healthy === 'Healthy' ? 'connected' : 'pending'}`}>{healthy}</span></div></div>
+    <div className="company-metrics">
+      <Metric tone="cost" label="TODAY'S ACCRUED COST" value={hasRunRate ? cashPrecise(billingAccrual.todayAccrued, currency) : '—'} unit="" sub="Accruing continuously from 00:00 · resets at midnight"/>
+      <Metric tone="cpu" label="CPU UTILIZATION" value={cpu.toFixed(1)} unit="%" sub={`${cpuUsedCores.toFixed(2)} / ${profile.vcpuAllocated || capacity.vcpu} vCPU · 24h average`} bar={cpu}/>
+      <Metric tone="memory" label="MEMORY USAGE" value={ram.toFixed(1)} unit="%" sub={`${memoryUsedGb.toFixed(2)} / ${capacity.memoryGb} GB · 24h average`} bar={ram}/>
+      <Metric tone="disk" label="DISK UTILIZATION" value={disk.toFixed(1)} unit="%" sub={`${diskUsedGb.toFixed(1)} / ${capacity.diskGb} GB · 24h average`} bar={disk}/>
+      <Metric tone="network" label="NETWORK I/O" value={net.toFixed(1)} unit=" Mbps" sub={`${capacity.networkMbps} Mbps provisioned · 24h average`} bar={capacity.networkMbps ? net / capacity.networkMbps * 100 : 0}/>
+    </div>
+    <div className="company-estimate-note"><span className="live-dot"/> Today's cost increases in proportion to elapsed time and resets at midnight. In the Daily chart, the solid line is accrued so far and the dashed line is the contract run-rate through midnight. The agreed monthly or yearly contract amount stays fixed. CPU, memory, disk and network figures are presentation estimates, not readings from a connected cloud provider.</div>
+    <div className="company-tabs">{['Overview', 'Servers & services', 'Codebase', 'Terminal', 'Activity log'].map(value => <button className={tab === value ? 'active' : ''} onClick={() => setTab(value)} key={value}>{value}</button>)}</div>
+
+    {tab === 'Overview' && <>
+      <div className="company-grid">
+        <section className="panel spend-panel"><div className="panel-head"><div><h3>Infrastructure cost movement</h3><p>Time-based contract accrual · {client.name}</p></div><span className="live-pill">● LIVE ACCRUAL</span></div>
+          <div className="spend-summary"><div><small>{billingAccrual.periodLabel} accrued</small><b>{hasRunRate ? cash(billingAccrual.periodAccrued, currency) : '—'}</b></div><div><small>Agreed contract amount</small><b>{hasRunRate ? <>{cash(pricing.contractAmount, currency)} <span className="spend-cycle">/ {pricing.billingCycle.toLowerCase()}</span></> : '—'}</b></div></div>
+          <div className="range-tabs">{[['1D', 'Daily'], ['1W', 'Weekly'], ['1M', 'Monthly'], ['1Y', 'Yearly']].map(([value, label]) => <button key={value} className={range === value ? 'chosen' : ''} onClick={() => setRange(value)}>{label}</button>)}</div>
+          {history.length ? <div className="spend-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={history} margin={{ top: 12, right: 16, left: 4, bottom: 2 }}><defs><linearGradient id="spendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#c8cdd5" stopOpacity={.24}/><stop offset="100%" stopColor="#c8cdd5" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#edf0f4" vertical={false}/><XAxis dataKey="label" tick={{ fontSize: 9, fill: '#929baa' }} axisLine={false} tickLine={false} interval={range === '1D' ? 3 : 'preserveStartEnd'}/><YAxis domain={[0, Math.max(rangeBudget, 1)]} tick={{ fontSize: 9, fill: '#929baa' }} axisLine={false} tickLine={false} tickFormatter={value => compactCash(value, currency)} tickCount={5} width={58}/><Tooltip content={<SpendTooltip currency={currency}/>} cursor={{ stroke: '#8290a0', strokeDasharray: '3 3' }}/>{range === '1D' && nowPoint?.label && <ReferenceLine x={nowPoint.label} stroke="#20a57f" strokeDasharray="4 4" strokeOpacity={.8} label={{ value: 'NOW', fill: '#20a57f', fontSize: 9, position: 'insideTopRight' }}/>}<Area type="monotone" dataKey="cost" name="Accrued so far" stroke="#c8cdd5" strokeWidth={2.4} fill="url(#spendFill)" connectNulls={false} isAnimationActive animationDuration={350}/>{range === '1D' && <Line type="monotone" dataKey="projection" name="Day-end run-rate" stroke="#20a57f" strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive animationDuration={350}/>}</AreaChart></ResponsiveContainer></div> : <div className="chart-empty">Add a monthly or yearly contract amount to calculate time-based accrual.</div>}
+          <div className="chart-bottom"><span><i className="live-dot"/> {range === '1D' ? 'Solid: accrued so far · dashed: day-end run-rate · updates every second' : 'Contract amount accrued from elapsed time · updates every second'}</span><span>{range === '1D' ? 'Full 24-hour scale' : `${history.length} time points`}</span></div>
+        </section>
+        <section className="panel"><div className="panel-head"><div><h3>Server health</h3><p>Primary production environment</p></div><span className="status connected">{healthLabel}</span></div>
+          <div className="server-identity"><div className="server-icon"><Server size={19}/></div><div><b>{profile.primaryResource || clientResources[0]?.name || 'Primary resource not configured'}</b><small>{profile.primaryResourceType || clientResources[0]?.specification || 'Server details not configured'}</small></div></div>
+          <div className="server-specs">{[['Cloud provider', provider], ['Region', regionCode ? `${region} · ${regionCode}` : region], ['Availability zone', profile.availabilityZone], ['Operating system', profile.operatingSystem], ['Primary IP', profile.primaryIp], ['Uptime', uptime], ['Instance state', profile.instanceState || clientResources[0]?.status]].filter(([, value]) => value).map(([label, value]) => <div key={label}><span>{label}</span><b>{value}</b></div>)}</div>
+          <button className="text-link" onClick={() => setTab('Servers & services')}>View full server details <ArrowUpRight size={13}/></button>
+        </section>
+      </div>
+      <div className="workload-grid">
+        <section className="panel workload-panel"><div className="panel-head"><div><h3>Application workload</h3><p>Automatically generated rolling sample</p></div><span className="status connected">Live simulation</span></div>
+          <div className="workload-kpis"><div><small>REQUESTS</small><b>{displayNumber(latest.requestRate)}<em>/sec</em></b></div><div><small>P95 LATENCY</small><b>{latest.latencyMs}<em>ms</em></b></div><div><small>ERROR RATE</small><b>{latest.errorRate}<em>%</em></b></div><div><small>ACTIVE SESSIONS</small><b>{displayNumber(latest.activeSessions)}</b></div></div>
+          <div className="workload-separator"/>
+          <WorkloadRow label="Database connections" value={latest.databaseConnections} max={latest.databaseConnectionLimit}/><WorkloadRow label="Redis cache hit ratio" value={latest.cacheHitRatio} max={100} suffix="%"/><WorkloadRow label="Background queue depth" value={latest.queueDepth} max={latest.queueCapacity} suffix=" jobs"/>
+          <div className="workload-footer"><span>Worker concurrency <b>{latest.workerConcurrency}</b></span><span>Scheduled jobs <b>{latest.scheduledJobs}</b></span><span>Open connections <b>{latest.openConnections}</b></span></div>
+        </section>
+        <section className="panel technical-table-panel"><div className="panel-head"><div><h3>Running containers & services</h3><p>{runtimeLabel} · {serviceResources.length} services <span className="estimated-inline-label">AUTO-GENERATED ESTIMATE</span></p></div><span className="status connected">{serviceResources.length ? `${serviceResources.filter(item => String(item.status).toLowerCase() === 'running').length} running` : 'No services'}</span></div>
+          <div className="table-scroll"><table><thead><tr><th>CONTAINER / SERVICE</th><th>IMAGE / RUNTIME</th><th>CPU</th><th>MEMORY</th><th>RESTARTS</th><th>STATUS</th></tr></thead><tbody>{serviceResources.map(resource => <tr key={resource._id || resource.name}><td><b>{resource.name}</b><small>{resource.estimated ? 'Estimated service' : resource.category || 'Service'}</small></td><td>{resource.image || resource.runtime || resource.specification || '—'}</td><td>{resource.cpuPercent === undefined ? '—' : `${resource.cpuPercent}%`}</td><td>{resource.memoryUsed || (resource.memoryPercent === undefined ? '—' : `${resource.memoryPercent}%`)}</td><td>{resource.restarts ?? '—'}</td><td><span className={`status ${String(resource.status || '').toLowerCase() === 'running' ? 'connected' : ''}`}>{resource.status || '—'}</span></td></tr>)}</tbody></table>{serviceResources.length === 0 && <div className="no-results">Add a client contract amount to generate its service profile automatically.</div>}</div>
+        </section>
+      </div>
+      <div className="technical-overview-grid">
+        <section className="panel runtime-panel"><div className="panel-head"><div><h3>Runtime & host configuration</h3><p>Configured environment specifications</p></div><span className="status connected">{runtimeSpecs.length ? 'Configured' : 'Not configured'}</span></div><div className="runtime-grid">{runtimeSpecs.map(spec => <div key={spec._id || spec.label}><small>{spec.label}</small><b>{spec.value || '—'}</b></div>)}</div>{runtimeSpecs.length === 0 && <div className="no-results">No runtime specifications have been added.</div>}</section>
+        <section className="panel deploy-panel"><div className="panel-head"><div><h3>Deployment pipeline</h3><p>Release and build records</p></div><span className="status connected">{profile.deploymentStatus || 'Not configured'}</span></div>{deployments.slice(0, 5).map(item => <div className="deploy-row" key={item._id || item.version}><span className="deploy-check">✓</span><div><b>{item.version || item.title}</b><small>{item.description || item.branch || ''}{item.buildDuration ? ` · Build ${item.buildDuration}` : ''}{item.buildSuccessRate !== undefined && item.buildSuccessRate !== '' ? ` · ${item.buildSuccessRate}% success` : ''}{item.rollbackPoint ? ` · Rollback ${item.rollbackPoint}` : ''}</small></div><time>{item.deployedAt ? dateText(item.deployedAt) : '—'}</time><span className="deploy-state">{item.status || '—'}</span></div>)}{deployments.length === 0 && <div className="no-results">No deployment records have been added.</div>}</section>
+      </div>
+      <section className="panel system-log-panel"><div className="panel-head"><div><h3>System event stream</h3><p>Admin-managed operational notes and event records</p></div><span className="live-pill">EVENTS</span></div>{logRows.slice(0, 6).map((item, index) => <div className="system-log-row" key={item._id || item.timestamp || index}><time>{timeText(item.timestamp || item.occurredAt)}</time><b className={String(item.level || item.severity || 'info').toLowerCase()}>{item.level || item.severity || 'INFO'}</b><span>{item.message || item.description || item.title || '—'}</span></div>)}{logRows.length === 0 && <div className="no-results">No operational events have been added.</div>}</section>
+    </>}
+
+    {tab === 'Servers & services' && <section className="panel table-panel"><div className="panel-head"><div><h3>Compute & managed services</h3><p>Estimated from the {pricing.billingCycle.toLowerCase()} contract for {client.name}</p></div><span className="status connected">{clientResources.length} resources</span></div><div className="table-scroll"><table><thead><tr><th>RESOURCE</th><th>TYPE</th><th>REGION</th><th>CPU</th><th>MEMORY</th><th>MONTHLY COST</th><th>STATE</th></tr></thead><tbody>{clientResources.map(resource => <tr key={resource._id || resource.name}><td><b>{resource.name}</b></td><td>{resource.category || '—'} · {resource.specification || ''}</td><td>{resource.region || '—'}</td><td>{resource.cpuPercent === undefined ? '—' : `${resource.cpuPercent}%`}</td><td>{resource.memoryPercent === undefined ? '—' : `${resource.memoryPercent}%`}</td><td>{cash(resource.monthlyCost, currency)}</td><td><span className="status connected">{resource.status || '—'}</span></td></tr>)}</tbody></table>{clientResources.length === 0 && <div className="no-results">No infrastructure inventory was manually added. The resource estimates above are generated from the client contract amount.</div>}</div></section>}
+
+    {tab === 'Codebase' && <div className="devtools-grid codebase-grid"><section className="panel file-panel"><div className="panel-head"><div><h3><Folder size={14}/> Codebase explorer</h3><p>Repository file information published by your provider</p></div><span className="status connected">Read-only</span></div><div className="repo-path">{profile.repositoryPath || 'Repository path not configured'}</div><div className="file-tree">{codebaseFiles.map(item => <button key={item._id || item.path} className={`tree-node ${chosenFile?._id === item._id ? 'picked' : ''}`} onClick={() => setFileId(item._id)}><FileCode2 size={13}/><span>{item.path || item.name}</span></button>)}</div><div className="file-foot"><ShieldCheck size={12}/> Read-only customer view</div></section><section className="panel code-panel"><div className="code-head"><div><FileCode2 size={14}/><b>{chosenFile?.path || chosenFile?.name || 'No file selected'}</b></div><span>READ ONLY</span></div><pre>{chosenFile?.content || '// No code preview has been added by your provider.'}</pre><div className="code-foot"><span>{chosenFile?.encoding || 'UTF-8'}</span><span>Read-only repository preview</span></div></section></div>}
+
+    {tab === 'Terminal' && <section className="panel terminal-page"><div className="terminal-page-head"><div><div className="terminal-title"><Terminal size={16}/><h3>Operational console output</h3><i className="terminal-dot"/></div><p>Read-only output notes supplied by your cloud administrator · {client.name}</p></div><span className="terminal-connection">READ ONLY</span></div><div className="terminal-session-meta"><span><i/> output records: {terminalEntries.length}</span><span>environment: {environment}</span><span>host: {profile.primaryResource || 'Not configured'}</span><span>path: {profile.repositoryPath || '—'}</span></div><div className="terminal-screen"><div className="terminal-screen-toolbar"><span>CONFIGURED OUTPUT</span><span>Administrator-maintained content</span></div><div className="terminal-output terminal-output-large">{terminalEntries.map((entry, index) => <React.Fragment key={entry._id || index}><div className="prompt-line">{entry.command ? `$ ${entry.command}` : `[${entry.level || 'INFO'}] ${entry.timestamp ? dateText(entry.timestamp) : ''}`}</div><div>{entry.output || entry.message || entry.description || ''}</div></React.Fragment>)}{terminalEntries.length === 0 && <div>No terminal output records have been published.</div>}</div></div><div className="terminal-safety-note"><ShieldCheck size={14}/><span>This view is read-only. It does not connect to or execute commands on a production server.</span></div></section>}
+
+    {tab === 'Activity log' && <section className="panel"><div className="panel-head"><div><h3>Operational activity</h3><p>Recent events and deployment actions</p></div></div>{activities.map((item, index) => <div className="activity-entry" key={item._id || index}><span>{timeText(item.occurredAt || item.timestamp)}</span><b>{item.title || item.actor || 'Activity'}</b><p>{item.description || item.message || ''}</p><span className="status connected">{item.severity || item.status || 'Info'}</span></div>)}{activities.length === 0 && <div className="no-results">No activity entries have been added.</div>}</section>}
+    {tab === 'Overview' && contentBlocks.length > 0 && <div className="customer-content-block-grid">{contentBlocks.map(block => <section className="panel" key={block._id}><h3>{block.title}</h3><p>{block.body}</p>{block.linkUrl && <a href={block.linkUrl} target="_blank" rel="noreferrer">{block.linkLabel || 'Learn more'} <ArrowUpRight size={13}/></a>}</section>)}</div>}
+  </div>;
+}
+
+function Metric({ label, value, unit, sub, bar, tone = 'neutral' }) {
+  return <div className={`company-metric metric-${tone}`}><span>{label}</span><b>{value}<small>{unit}</small></b>{bar !== undefined ? <><div className="metric-bar"><i style={{ width: `${Math.max(0, Math.min(100, Number(bar)))}%` }}/></div><em>{sub}</em></> : <em>{sub}</em>}</div>;
+}
+function WorkloadRow({ label, value, max, suffix = '' }) {
+  const hasValue = value !== undefined && value !== null && value !== '';
+  const percentage = hasValue && Number(max) > 0 ? Math.min(100, Number(value) / Number(max) * 100) : 0;
+  return <div className="workload-row"><span>{label}</span><b>{hasValue ? `${numberText(value)}${suffix}` : '—'}</b><i><em style={{ width: `${percentage}%` }}/></i></div>;
+}

@@ -373,18 +373,22 @@ tbody tr:hover{background:#171d25}
 .terminal-card-shortcuts{display:flex;gap:5px;flex-wrap:wrap;padding:9px 12px;background:#10161e}
 .terminal-card-shortcuts button{border:1px solid #35404c;background:#202731;color:#c1c8d1;border-radius:4px;padding:5px 7px;font:7px monospace}
 .terminal-card-shortcuts button:hover{background:#343d49;color:white}
-.workload-panel{padding:15px}
-.workload-kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px 10px;padding:16px 0}
-.workload-kpis>div{display:grid;gap:5px}
-.workload-kpis small{font-size:7px;letter-spacing:.65px;color:#929daa;font-weight:700}
-.workload-kpis b{font:800 18px Manrope;color:#e2e6ec}
-.workload-kpis em{font:500 8px 'DM Sans';font-style:normal;color:#9ba5b1;margin-left:3px}
-.workload-separator{height:1px;background:#2a323c;margin:1px 0 7px}
-.workload-row{display:grid;grid-template-columns:1fr auto;gap:6px 8px;padding:8px 0;border-bottom:1px solid #252d37}
+.workload-grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(340px,.98fr);gap:14px;align-items:stretch}
+.workload-panel{padding:15px;min-width:0}
+.workload-panel>.panel-head{align-items:flex-start}
+.workload-panel>.panel-head>div{min-width:0}
+.workload-panel>.panel-head .status{flex-shrink:0;white-space:nowrap}
+.workload-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:15px 0 13px}
+.workload-kpis>div{display:grid;align-content:start;gap:6px;min-width:0;padding:11px 12px;background:#151b23;border:1px solid #29323d;border-radius:7px}
+.workload-kpis small{display:block;font-size:8px;line-height:1.3;letter-spacing:.7px;color:#929daa;font-weight:700;white-space:nowrap}
+.workload-kpis b{display:block;font:800 19px/1.2 Manrope;color:#e2e6ec;white-space:nowrap}
+.workload-kpis em{font:500 9px 'DM Sans';font-style:normal;color:#9ba5b1;margin-left:3px}
+.workload-separator{height:1px;background:#2a323c;margin:1px 0 5px}
+.workload-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 10px;padding:9px 0;border-bottom:1px solid #252d37;min-width:0}
 .workload-row span{font-size:8px;color:#a5aeb9}.workload-row b{font-size:8px;color:#dce1e7}
 .workload-row>i{grid-column:span 2;height:4px;background:#303741;border-radius:6px;overflow:hidden}
 .workload-row>i em{display:block;height:100%;background:#8b9fb6;border-radius:6px}
-.workload-footer{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;padding-top:10px;color:#8994a1;font-size:7px}
+.workload-footer{display:flex;gap:10px 16px;justify-content:space-between;flex-wrap:wrap;padding-top:11px;color:#8994a1;font-size:8px;line-height:1.5;border-top:1px solid #252d37;margin-top:2px}
 .workload-footer b{color:#d7dce3;margin-left:3px}
 .technical-overview-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.9fr);gap:14px;align-items:stretch}
 .technical-table-panel{padding:0;overflow:hidden}
@@ -410,5 +414,37 @@ tbody tr:hover{background:#171d25}
 .system-log-row b{font-size:7px;letter-spacing:.5px;color:#b8c1ca}
 .system-log-row b.warn{color:#d8b56e}
 .system-log-row span{font-size:8px;color:#b4bdc7;overflow-wrap:anywhere}
-@media(max-width:1150px){.operations-grid,.technical-overview-grid{grid-template-columns:1fr}}
-@media(max-width:560px){.terminal-card-toolbar{gap:7px;flex-wrap:wrap}.terminal-card-toolbar span:nth-child(2){display:none}.overview-terminal-output{height:130px}.workload-kpis{gap:10px}.runtime-grid{gap:10px}.deploy-row{grid-template-columns:18px minmax(0,1fr) auto}.deploy-row time{grid-column:2}.deploy-state{grid-column:3;grid-row:1}.system-log-row{grid-template-columns:48px 38px minmax(0,1fr);gap:5px}}
+@media(max-width:1150px){.workload-grid,.operations-grid,.technical-overview-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.workload-panel{padding:13px}.workload-kpis{gap:8px}.workload-kpis>div{padding:10px}.workload-kpis b{font-size:17px}.workload-panel>.panel-head{gap:8px}.workload-panel>.panel-head .status{font-size:7px;padding:4px 6px}.terminal-card-toolbar{gap:7px;flex-wrap:wrap}.terminal-card-toolbar span:nth-child(2){display:none}.overview-terminal-output{height:130px}.workload-kpis{gap:10px}.runtime-grid{gap:10px}.deploy-row{grid-template-columns:18px minmax(0,1fr) auto}.deploy-row time{grid-column:2}.deploy-state{grid-column:3;grid-row:1}.system-log-row{grid-template-columns:48px 38px minmax(0,1fr);gap:5px}}
+
+/* Database-backed portal states */
+.loading-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#f7f8fa;color:#263241;font:13px 'DM Sans',sans-serif;text-align:center;padding:24px}.loading-mark{width:48px;height:48px;border:1px solid #dfe3e9;border-radius:14px;display:grid;place-items:center;color:#657181;background:#fff;margin-bottom:4px}.loading-screen b{font-size:15px}.loading-screen span{font-size:11px;color:#8a93a0}.loading-screen .btn{margin-top:10px}.chart-empty{height:210px;display:grid;place-items:center;color:#8993a0;font-size:11px;text-align:center;padding:20px}.no-results{padding:22px;text-align:center;color:#929baa;font-size:11px}.support-email{font-size:9px;color:#87919e;display:block;overflow-wrap:anywhere}
+
+.customer-content-block-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:14px 0}.customer-content-block-grid .panel{padding:17px}.customer-content-block-grid h3{margin:0 0 7px;font-size:13px}.customer-content-block-grid p{font-size:11px;line-height:1.65;color:#7d8794}.customer-content-block-grid a{font-size:10px;color:#566271;text-decoration:none;display:inline-flex;align-items:center;gap:4px}@media(max-width:760px){.customer-content-block-grid{grid-template-columns:1fr}}
+
+/* Customer portal branding overrides controlled by admin settings */
+.app-shell .brand-mark{background:var(--portal-accent,#3978e8);color:#fff}
+.app-shell .nav-item.active{box-shadow:inset 2px 0 var(--portal-accent,#3978e8)}
+.app-shell .company-tabs button.active{border-color:var(--portal-accent,#3978e8)}
+.app-shell .text-link{color:var(--portal-accent,#cfd6e0)}
+.portal-brand-image{width:22px;height:22px;object-fit:contain;display:block}
+
+.company-estimate-note{display:flex;align-items:flex-start;gap:8px;padding:8px 11px;border:1px solid #2a323c;border-radius:7px;background:#141920;color:#9aa5b3;font-size:8px;line-height:1.55}.company-estimate-note .live-dot{flex:0 0 6px;margin-top:2px}
+
+/* Contract cycle label beside the fixed agreed price. */
+.spend-cycle{font:600 9px 'DM Sans',sans-serif;color:#929ca9;white-space:nowrap}
+
+.estimated-inline-label { display: inline-flex; align-items: center; margin-left: 7px; padding: 2px 6px; border: 1px solid rgba(115, 160, 132, .28); border-radius: 999px; color: #80b99a; font-size: 9px; font-weight: 700; letter-spacing: .06em; vertical-align: middle; }
+
+/* Graph accuracy and tooltip presentation */
+.resource-chart-tooltip,.spend-chart-tooltip,.cl-telemetry-tooltip{min-width:164px;padding:10px 12px;background:#151b23;border:1px solid #303944;border-radius:9px;color:#e6e9ef;box-shadow:0 10px 28px #0005;font-size:11px;line-height:1.45}
+.resource-chart-tooltip>strong,.spend-chart-tooltip>strong,.cl-telemetry-tooltip>strong{display:block;margin-bottom:7px;color:#f1f3f6;font-size:11px;font-weight:700}
+.resource-chart-tooltip>div,.spend-chart-tooltip>div,.cl-telemetry-tooltip>div{display:flex;align-items:center;gap:7px;margin-top:5px;white-space:nowrap}
+.resource-chart-tooltip>div>i,.cl-telemetry-tooltip>div>i{width:7px;height:7px;flex:0 0 7px;border-radius:50%}
+.resource-chart-tooltip>div>span,.spend-chart-tooltip>div>span,.cl-telemetry-tooltip>div>span{color:#aeb8c5;flex:1}
+.resource-chart-tooltip>div>b,.spend-chart-tooltip>div>b,.cl-telemetry-tooltip>div>b{color:#f1f3f6;font-weight:700;font-variant-numeric:tabular-nums}
+.spend-chart-tooltip .actual-dot,.spend-chart-tooltip .forecast-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;display:inline-block;margin-right:1px}
+.spend-chart-tooltip .actual-dot{background:#c8cdd5}
+.spend-chart-tooltip .forecast-dot{background:#20a57f}
+.chart-legend .chart-axis-note{margin-left:auto;color:#7f8996;font-size:8px;white-space:nowrap}
+@media(max-width:650px){.chart-legend .chart-axis-note{margin-left:0;width:100%}}
