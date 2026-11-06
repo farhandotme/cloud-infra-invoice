@@ -9,6 +9,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import CompanyDashboard from './CompanyDashboard.jsx';
 import { makeLiveUsageSeries } from './liveTelemetry.js';
+import { buildTransactionsFromInvoices, buildEstimatedTransactions, summarizeTransactions } from './transactionModel.js';
 import { getClientPricing, getBillingAccrual, buildEstimatedResources, isUsableResourceRecord } from './pricingModel.js';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -178,7 +179,7 @@ function App() {
         {page === 'Clients' && <Clients clients={filteredClients} setSelectedClient={client => { setSelectedClientCode(client.code); change('Company dashboard'); }}/>} 
         {page === 'Cost plans' && <CostPlans plans={data.costPlans.filter(plan => !plan.clientCode || plan.clientCode === clientCode)} currency={currency}/>}
         {page === 'Invoices' && <Invoices invoices={clientInvoices} currency={currency}/>}
-        {page === 'Transactions' && <Transactions transactions={data.transactions.filter(item => !item.clientCode || item.clientCode === clientCode)} currency={currency}/>}
+        {page === 'Transactions' && <Transactions transactions={data.transactions.filter(item => !item.clientCode || item.clientCode === clientCode)} invoices={clientInvoices} client={selectedClient} currency={currency}/>}
         {page === 'Integrations' && <Integrations integrations={workspaceIntegrations} resources={clientResources}/>}
         {page === 'Settings' && <SettingsPage client={selectedClient} profile={profile} settings={settings}/>} 
       </div>
@@ -295,8 +296,24 @@ function Invoices({ invoices, currency }) {
     <div className="info-banner"><ShieldCheck size={18}/><div><b>Billing records</b><p>Invoice records and document links are published by your cloud provider. Contact support if you need a copy or clarification.</p></div></div></>;
 }
 
-function Transactions({ transactions, currency }) {
-  return <section className="panel table-panel"><div className="panel-head"><div><h3>Payment transactions</h3><p>Payment records associated with this workspace</p></div></div><div className="table-scroll"><table><thead><tr><th>REFERENCE</th><th>CLIENT</th><th>DATE</th><th>METHOD</th><th>AMOUNT</th><th>STATUS</th></tr></thead><tbody>{transactions.map(transaction => <tr key={transaction._id || transaction.reference}><td><b>{transaction.reference || '—'}</b></td><td>{transaction.clientName || '—'}</td><td>{dateText(transaction.date)}</td><td>{transaction.method || '—'}</td><td><b>{money(transaction.amount, transaction.currency || currency)}</b></td><td><Status status={transaction.status}/></td></tr>)}</tbody></table>{transactions.length === 0 && <div className="no-results">No payment transactions have been published.</div>}</div></section>;
+function Transactions({ transactions, invoices = [], client, currency }) {
+  const now = new Date();
+  const fromInvoices = useMemo(() => buildTransactionsFromInvoices(invoices, now), [invoices]);
+  const sample = useMemo(() => buildEstimatedTransactions(client || {}, now), [client?.code, client?.name, client?.contractAmount, client?.billingCycle]);
+  const published = transactions.length > 0;
+  const rows = published ? transactions : fromInvoices.length ? fromInvoices : sample;
+  const source = published ? 'published' : fromInvoices.length ? 'invoices' : sample.length ? 'sample' : 'none';
+  const sum = summarizeTransactions(rows, invoices);
+  const cur = rows[0]?.currency || currency;
+  return <>
+    {rows.length > 0 && <div className="txn-summary">
+      <div><small>TOTAL RECEIVED</small><b>{money(sum.received, cur)}</b><em>{sum.count} successful payment{sum.count === 1 ? '' : 's'}</em></div>
+      <div><small>LAST PAYMENT</small><b>{sum.last ? money(sum.last.amount, sum.last.currency || cur) : '—'}</b><em>{sum.last ? `${dateText(sum.last.date)} · ${sum.last.method || '—'}` : '—'}</em></div>
+      <div><small>OUTSTANDING</small><b>{money(sum.outstanding, cur)}</b><em>Pending and overdue invoices</em></div>
+      <div><small>PAYMENT METHODS</small><b>{new Set(rows.map(row => row.method).filter(Boolean)).size}</b><em>{[...new Set(rows.map(row => row.method).filter(Boolean))].slice(0, 3).join(' · ') || '—'}</em></div>
+    </div>}
+    <section className="panel table-panel"><div className="panel-head"><div><h3>Payment transactions</h3><p>{source === 'invoices' ? 'One payment for every paid invoice, matched to the Invoices page' : source === 'sample' ? <>Payment history from the contract amount <span className="estimated-inline-label">AUTO-GENERATED SAMPLE</span></> : 'Payment records associated with this workspace'}</p></div></div><div className="table-scroll"><table><thead><tr><th>REFERENCE</th><th>CLIENT</th><th>INVOICE</th><th>DATE</th><th>METHOD</th><th>AMOUNT</th><th>STATUS</th></tr></thead><tbody>{rows.map(transaction => <tr key={transaction._id || transaction.reference}><td><b>{transaction.reference || '—'}</b></td><td>{transaction.clientName || '—'}</td><td>{transaction.invoiceNumber || '—'}</td><td>{dateText(transaction.date)}</td><td>{transaction.method || '—'}</td><td><b>{money(transaction.amount, transaction.currency || currency)}</b></td><td><Status status={transaction.status}/></td></tr>)}</tbody></table>{rows.length === 0 && <div className="no-results">No payments yet. Payments appear here when an invoice is marked Paid, or once a contract amount is set for this client.</div>}</div></section>
+  </>;
 }
 
 function Integrations({ integrations, resources }) {

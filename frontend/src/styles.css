@@ -448,3 +448,11 @@ tbody tr:hover{background:#171d25}
 .spend-chart-tooltip .forecast-dot{background:#20a57f}
 .chart-legend .chart-axis-note{margin-left:auto;color:#7f8996;font-size:8px;white-space:nowrap}
 @media(max-width:650px){.chart-legend .chart-axis-note{margin-left:0;width:100%}}
+
+/* Transactions summary */
+.txn-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.txn-summary>div{display:grid;gap:5px;padding:14px 16px;border:1px solid #252d37;border-radius:10px;background:#11161d}
+.txn-summary small{font-size:9px;letter-spacing:.08em;color:#8993a0;font-weight:700}
+.txn-summary b{font-size:19px;color:#edf1f5}
+.txn-summary em{font-style:normal;font-size:10px;color:#8993a0}
+@media(max-width:900px){.txn-summary{grid-template-columns:1fr 1fr}}
