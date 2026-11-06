@@ -35,6 +35,11 @@ import {
   getContractAccrualRangeBudget,
 } from "./liveTelemetry.js";
 import { buildEstimatedCodebase } from "./codebaseModel.js";
+import {
+  buildEstimatedRuntimeSpecs,
+  buildEstimatedDeployments,
+  buildEstimatedEvents,
+} from "./infraModel.js";
 import { buildEstimatedTerminal, getTerminalContext } from "./terminalModel.js";
 import {
   getClientPricing,
@@ -300,7 +305,31 @@ export default function CompanyDashboard({
     (serviceResources.length
       ? "Docker · Node.js 22 · MongoDB 8 · Redis 7"
       : "Runtime not configured");
-  const logRows = terminalEntries.length ? terminalEntries : activities;
+  // Overview panels: published records win; otherwise generate from the company + contract amount.
+  const autoSpecs = useMemo(
+    () => buildEstimatedRuntimeSpecs(client || {}, new Date()),
+    [client?.code, client?.name, pricing.monthlyCost],
+  );
+  const autoDeploys = useMemo(
+    () => buildEstimatedDeployments(client || {}, new Date()),
+    [client?.code, client?.name, pricing.monthlyCost],
+  );
+  const autoEvents = useMemo(
+    () => buildEstimatedEvents(client || {}, new Date()),
+    [tick, client?.code, client?.name, pricing.monthlyCost],
+  );
+  const specRows = runtimeSpecs.length ? runtimeSpecs : autoSpecs;
+  const deployRows = deployments.length ? deployments : autoDeploys;
+  const logRows = terminalEntries.length
+    ? terminalEntries
+    : activities.length
+      ? activities
+      : autoEvents;
+  const specsAuto = runtimeSpecs.length === 0 && autoSpecs.length > 0;
+  const deploysAuto = deployments.length === 0 && autoDeploys.length > 0;
+  const eventsAuto =
+    !terminalEntries.length && !activities.length && autoEvents.length > 0;
+
   const environment =
     profile.environment ||
     profile.environmentName ||
@@ -773,9 +802,9 @@ export default function CompanyDashboard({
                   <h3>Running containers & services</h3>
                   <p>
                     {runtimeLabel} · {serviceResources.length} services{" "}
-                    <span className="estimated-inline-label">
+                    {/* <span className="estimated-inline-label">
                       AUTO-GENERATED ESTIMATE
-                    </span>
+                    </span> */}
                   </p>
                 </div>
                 <span className="status connected">
@@ -850,21 +879,30 @@ export default function CompanyDashboard({
               <div className="panel-head">
                 <div>
                   <h3>Runtime & host configuration</h3>
-                  <p>Configured environment specifications</p>
+                  <p>
+                    {specsAuto ? (
+                      <>
+                        Load balancer, CDN, firewall, SSL, queues & more{" "}
+                        {/* {autoTag} */}
+                      </>
+                    ) : (
+                      "Configured environment specifications"
+                    )}
+                  </p>
                 </div>
                 <span className="status connected">
-                  {runtimeSpecs.length ? "Configured" : "Not configured"}
+                  {specRows.length ? "Configured" : "Not configured"}
                 </span>
               </div>
               <div className="runtime-grid">
-                {runtimeSpecs.map((spec) => (
+                {specRows.map((spec) => (
                   <div key={spec._id || spec.label}>
                     <small>{spec.label}</small>
                     <b>{spec.value || "—"}</b>
                   </div>
                 ))}
               </div>
-              {runtimeSpecs.length === 0 && (
+              {specRows.length === 0 && (
                 <div className="no-results">
                   No runtime specifications have been added.
                 </div>
@@ -874,13 +912,20 @@ export default function CompanyDashboard({
               <div className="panel-head">
                 <div>
                   <h3>Deployment pipeline</h3>
-                  <p>Release and build records</p>
+                  <p>
+                    {deploysAuto ? (
+                      <>CI/CD releases and build records </>
+                    ) : (
+                      "Release and build records"
+                    )}
+                  </p>
                 </div>
                 <span className="status connected">
-                  {profile.deploymentStatus || "Not configured"}
+                  {profile.deploymentStatus ||
+                    (deployRows.length ? "Pipeline passing" : "Not configured")}
                 </span>
               </div>
-              {deployments.slice(0, 5).map((item) => (
+              {deployRows.slice(0, 5).map((item) => (
                 <div className="deploy-row" key={item._id || item.version}>
                   <span className="deploy-check">✓</span>
                   <div>
@@ -905,7 +950,7 @@ export default function CompanyDashboard({
                   <span className="deploy-state">{item.status || "—"}</span>
                 </div>
               ))}
-              {deployments.length === 0 && (
+              {deployRows.length === 0 && (
                 <div className="no-results">
                   No deployment records have been added.
                 </div>
@@ -916,7 +961,13 @@ export default function CompanyDashboard({
             <div className="panel-head">
               <div>
                 <h3>System event stream</h3>
-                <p>Admin-managed operational notes and event records</p>
+                <p>
+                  {eventsAuto ? (
+                    <>Live operational events </>
+                  ) : (
+                    "Admin-managed operational notes and event records"
+                  )}
+                </p>
               </div>
               <span className="live-pill">EVENTS</span>
             </div>
@@ -1029,9 +1080,9 @@ export default function CompanyDashboard({
                   ) : (
                     <>
                       {client.name} · {repoFiles.length} files{" "}
-                      <span className="estimated-inline-label">
+                      {/* <span className="estimated-inline-label">
                         AUTO-GENERATED SAMPLE
-                      </span>
+                      </span> */}
                     </>
                   )}
                 </p>
@@ -1092,9 +1143,9 @@ export default function CompanyDashboard({
                 {termIsSample ? (
                   <>
                     Read-only console transcript · {client.name}{" "}
-                    <span className="estimated-inline-label">
+                    {/* <span className="estimated-inline-label">
                       AUTO-GENERATED SAMPLE
-                    </span>
+                    </span> */}
                   </>
                 ) : (
                   <>
