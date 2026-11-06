@@ -1,37 +1,10 @@
-# CloudLedger customer portal + private admin
+# CloudLedger — client invoicing
 
-This project has two distinct interfaces backed by one Node.js API and MongoDB database.
+A small invoicing app: the admin adds client companies and the amount they pay, generates monthly or yearly invoices, and the client sees them (with PDF downloads) in a read-only portal.
 
-- **Customer portal:** `/` — preserves the supplied CloudLedger customer dashboard design. It is read-only and loads the values configured by the administrator.
-- **Private admin:** `/admin` — a separate authenticated workspace. It is not linked from the customer portal. Administrators manage the records and customer-facing configuration here.
-- **Backend:** `backend/` — Express API, MongoDB models, administrator authentication, public read-only portal API and admin-only CRUD API.
-
-There are no seeded clients, invoices, infrastructure resources or other business records. A new database starts empty. Add records through `/admin` and they will be reflected in the customer portal. Resource telemetry charts are generated automatically for presentation and do not require MongoDB records or admin data entry. Contract-cost charts are calculated from the agreed billing amount and elapsed time; they are not random spend simulations.
-
-## Folder structure
-
-```text
-cloud/
-├── backend/
-│   ├── src/
-│   │   ├── middleware/
-│   │   ├── models/
-│   │   ├── routes/
-│   │   └── server.js
-│   ├── package.json
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx             # customer-facing portal
-│   │   ├── CompanyDashboard.jsx
-│   │   ├── AdminApp.jsx         # separate admin interface
-│   │   ├── styles.css           # original customer dashboard styling
-│   │   └── admin.css
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-└── README.md
-```
+- **Admin:** `/admin` — Dashboard, Clients, Invoices, Settings, Audit log.
+- **Customer portal:** `/` — the original read-only client dashboard (unchanged). Generated invoices appear in its Invoices page with a PDF download.
+- **Backend:** `backend/` — Express + MongoDB + PDF generation (pdfkit).
 
 ## 1. Configure MongoDB and the first admin
 
@@ -84,38 +57,29 @@ Open:
 
 The Vite development server proxies `/api` requests to `http://localhost:4000` by default.
 
-## 3. What to configure in the admin
+## 3. Using it
 
-Sign in at `/admin`, then use **Admin manager**. Available data areas include:
+1. **Clients → Add client:** company name, Monthly or Yearly, and the amount. Contact/GSTIN/address are optional and appear on the invoice PDF.
+2. **Settings:** set your own company name, support email and invoice prefix (shown on the PDFs).
+3. Generate invoices (below).
 
-- Clients: enter only a company name, choose Monthly or Yearly, and enter the contract amount. The backend generates a client code and calculates the monthly equivalent, annual equivalent and current calendar-period daily allocation automatically.
-- Infrastructure: instance/service name, provider, region, machine configuration, CPU, memory, storage, status and monthly cost.
-- Cost plans, invoices and payment transactions.
-- Integrations and dashboard cards.
-- Client environment profiles: region, OS, IP/host, health status, environment and allocation details.
-- Deployments and release history.
-- Runtime specifications.
-- Codebase file names and read-only text previews.
-- Read-only console output and activity entries.
-- Content blocks, branding, support details, customer-facing page labels and descriptions.
+## Invoice generator (Admin → Invoices → Generate invoices)
 
-Every listed record can be created, edited, hidden or deleted. Chart points are intentionally not an admin record type: resource telemetry charts generate rolling presentation samples automatically, so no one needs to enter graph values. Client amount drives a simple presentation allocation model: each ₹2,500 of monthly-equivalent price maps to 1 vCPU, 2 GB RAM, 50 GB storage and 25 Mbps network capacity (up to 64 units). Utilization figures are simulated estimates, not actual cloud-provider metrics. Cost charts instead use deterministic time-based contract accrual. Administrative data changes are recorded in the audit log. Only active records are returned to the customer portal.
+1. Add the client company (Admin → Clients).
+2. Open **Invoices → Generate invoices**, pick the client and either:
+   - **One month** – choose the month and the amount → one invoice; or
+   - **Whole year (split by month)** – choose the start month (end month defaults to 11 months later; change it for any range up to 60 months) and the **total** amount. The app divides the total across the months with natural variation (each month roughly within ±25% of the average). The parts always add up to exactly the total (whole rupees if the total is a whole number, otherwise paise).
+3. Press **Preview**, use **Split again** to reshuffle, then **Generate**. Past periods work the same way (status defaults to Paid for past months, Pending otherwise).
+4. Every invoice has a **Download PDF** button; a yearly set also has **All as PDF** (one PDF, one page per month). The customer portal's invoice register links to the same PDF. A set can be deleted and regenerated.
 
+**Mindboxx service charge (optional):** tick “Add Mindboxx service charge” and enter a percentage (default 10). The amount you enter stays as the base and is split as usual; the percentage is added on top, so 210,000 + 10% = 231,000 across the invoices. Each invoice shows the base line, a separate “Mindboxx service charge” line and the total. Leave it unticked and nothing extra appears.
 
-### Client pricing and estimated resource profile
+A month that already has an invoice for the client is refused, so nothing is invoiced twice. Apart from the optional service charge, no tax is added on top of the amount entered.
 
-In **Admin → Clients → Add client**, enter the company name, choose **Monthly** or **Yearly**, and enter the amount. The API generates the client code and stores the entered contract amount plus normalized monthly and yearly equivalents. The daily allocation is calculated from the actual number of days in the current calendar month or year (including leap years). The customer portal automatically creates a presentation resource profile when no real resource inventory is configured.
+## Security notes
 
-The demo allocation heuristic is ₹2,500 per month-equivalent for one capacity unit: 1 vCPU, 2 GB RAM, 50 GB disk and 25 Mbps provisioned network. CPU, RAM, disk and network utilization are rolling simulated averages that refresh on the dashboard; absolute GB/core usage is derived from the allocated capacity. This is a customizable presentation rule, not a universal cloud price or actual monitoring data.
-
-## Data and security notes
-
-- `/api/public/portal` is read-only and returns active customer-facing records and a safe subset of display settings. Set `PUBLIC_CLIENT_CODE` to the client code assigned to that customer portal deployment; this filters customer records and client-linked resources, billing and telemetry to that client. Records without a client code are treated as shared/global content.
-- `/api/admin/*` requires an administrator JWT. The customer app has no admin token and no record-write controls.
-- `/admin` is a separate route and is protected by the admin login, but it is not linked from the customer navigation.
-- `PUBLIC_CLIENT_CODE` is the simple single-customer deployment scope. Use a separate deployment/configuration per customer, or implement customer authentication and server-enforced tenant scoping before sharing one portal URL with multiple customers. Do not leave the setting blank when exposing a production portal to a customer; a blank value displays all active client records.
-- The customer-facing Company dashboard calculates today's accrued amount continuously: it starts at ₹0 at local midnight and increases in proportion to elapsed time. A monthly contract is prorated across the actual number of days in the current calendar month; a yearly contract is prorated across 365 or 366 days in the calendar year. The daily counter resets at midnight. The month-to-date or year-to-date total continues accruing until its billing period ends, at which point it equals the agreed contract amount. The customer sees the exact contract amount labelled `/ month` or `/ year`; projected monthly totals and budget-utilization percentages are not shown. The billing period is calendar-based because no separate contract start date is required or entered. The estimated allocation model uses ₹2,500/month-equivalent per capacity unit (1 vCPU, 2 GB RAM, 50 GB storage and 25 Mbps network), capped at 64 units. CPU, memory, disk and network values move every few seconds around estimated daily averages. All such values are simulated presentation estimates—not real cloud usage, provider capacity or actual billing. Price alone cannot determine actual utilization. This application does not connect to AWS, DigitalOcean, Vercel or other providers; replace the generator with provider metrics and billing integrations before representing the charts as real monitoring data.
-- Codebase previews and console output are read-only text records. They do not expose source repositories or execute commands on production servers.
+- `/api/public/*` is read-only and returns only clients and invoices. Set `PUBLIC_CLIENT_CODE` to the client code for a customer deployment so that portal only sees that client; do not leave it blank in production if several clients exist.
+- `/api/admin/*` requires an administrator JWT.
 
 ## Production deployment
 

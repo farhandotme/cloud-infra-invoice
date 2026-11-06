@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Record from '../models/Record.js';
 import Settings from '../models/Settings.js';
+import { sendInvoicesPdf } from '../services/invoicePdf.js';
 
 const router = Router();
 const publicRecordTypes = [
@@ -12,7 +13,7 @@ const recordFields = {
   clients: ['name','code','company','plan','provider','contractAmount','billingCycle','monthlyCost','yearlyCost','estimatedCapacity','currency','status','servers','color','region'],
   resources: ['name','clientCode','category','provider','region','environment','specification','cpuPercent','memoryPercent','storageGB','monthlyCost','status','image','runtime','memoryUsed','restarts','storageUsedGB','securityChecksPassed'],
   costPlans: ['name','clientCode','description','monthlyPrice','currency','billingCycle','serversIncluded','storageGB','features','overageRate','status'],
-  invoices: ['number','clientName','clientCode','issueDate','dueDate','amount','currency','taxRate','status','paymentTerms','lineItems','pdfUrl','billingCycle'],
+  invoices: ['number','clientName','clientCode','issueDate','dueDate','amount','currency','taxRate','status','paymentTerms','lineItems','pdfUrl','billingCycle','periodMonth','periodLabel','batchId','batchLabel','generated','baseAmount','serviceChargePct','serviceCharge'],
   transactions: ['reference','clientName','clientCode','invoiceNumber','date','amount','currency','method','status'],
   integrations: ['name','clientCode','provider','accountName','region','status','lastSyncedAt','description'],
   dashboardCards: ['metric','label','value','change','footnote','icon','order','enabled','clientCode'],
@@ -66,5 +67,25 @@ router.get('/portal', async (_req, res, next) => {
     res.json({ records: grouped, settings, updatedAt: new Date().toISOString() });
   } catch (error) { next(error); }
 });
+
+// Customer download of one invoice, limited to the portal's own client.
+router.get('/invoices/:id/pdf', async (req, res, next) => {
+  try {
+    if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(400).json({ message: 'Invalid invoice ID.' });
+    const invoice = await Record.findOne({ _id: req.params.id, type: 'invoices', isActive: true }).lean();
+    const scope = String(process.env.PUBLIC_CLIENT_CODE || '').trim().toLowerCase();
+    const code = String(invoice?.data?.clientCode || '').trim().toLowerCase();
+    if (!invoice || (scope && code && code !== scope)) return res.status(404).json({ message: 'Invoice not found.' });
+    const [client, settingsDoc] = await Promise.all([
+      Record.findOne({ type: 'clients', 'data.code': invoice.data?.clientCode }).lean(),
+      Settings.findOne({ key: 'main' }).lean()
+    ]);
+    sendInvoicesPdf(res, [invoice], {
+      clientsByCode: client ? { [client.data.code]: client.data } : {},
+      settings: settingsDoc?.data || {}, filename: `${invoice.data?.number || 'invoice'}.pdf`
+    });
+  } catch (error) { next(error); }
+});
+
 
 export default router;

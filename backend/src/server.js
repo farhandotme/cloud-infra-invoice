@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import Admin from './models/Admin.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
+import invoiceRoutes from './routes/invoices.js';
 import publicRoutes from './routes/public.js';
 
 const app = express();
@@ -27,6 +28,7 @@ app.use(express.json({ limit: '2mb' }));
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/admin/invoices', invoiceRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use((err, _req, res, _next) => {
