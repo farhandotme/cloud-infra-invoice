@@ -75,3 +75,14 @@
 .cl-status-select{background:#0d141c;color:#e4e7ec;border:1px solid #35414e;border-radius:6px;padding:5px 8px;font-size:11px}
 .cl-heading-actions select,.heading-actions select{min-height:36px}
 .cl-charge-box{border:1px solid #35414e;border-radius:10px;padding:12px;background:#0d141c}.cl-check{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;cursor:pointer}.cl-check input{width:16px;height:16px}.cl-charge-input{display:flex;align-items:center;gap:10px;margin-top:10px}.cl-charge-input input{width:110px}.cl-charge-input b{font-size:12px;color:#9aa6b4;font-weight:500}
+
+/* Invoice filters */
+.cl-filter-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:0 0 14px;padding:12px;border:1px solid var(--cl-line);border-radius:10px;background:var(--cl-panel2)}
+.cl-filter{display:flex;flex-direction:column;gap:5px;min-width:140px;flex:1 1 140px}
+.cl-filter>span{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--cl-muted)}
+.cl-filter input,.cl-filter select{width:100%;min-height:36px;padding:7px 10px;font-size:12px;border-radius:8px;border:1px solid #35414e;background:#0d141c;color:#edf1f5;outline:none}
+.cl-filter input:focus,.cl-filter select:focus{border-color:#7f8b9a}
+.cl-filter.search{position:relative;flex:2 1 260px;justify-content:flex-end}
+.cl-filter.search svg{position:absolute;left:10px;bottom:12px;color:var(--cl-muted);pointer-events:none}
+.cl-filter.search input{padding-left:30px}
+.cl-filter-clear{min-height:36px}

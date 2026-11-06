@@ -34,6 +34,8 @@ import {
   makeContractAccrualHistory,
   getContractAccrualRangeBudget,
 } from "./liveTelemetry.js";
+import { buildEstimatedCodebase } from "./codebaseModel.js";
+import { buildEstimatedTerminal, getTerminalContext } from "./terminalModel.js";
 import {
   getClientPricing,
   getBillingAccrual,
@@ -263,10 +265,26 @@ export default function CompanyDashboard({
   );
   const nowPoint =
     history.find((point) => point.isNow) || history[history.length - 1];
+  // Codebase tab: use the provider's published files if any, otherwise a sample repo generated from the company.
+  const autoCodebase = useMemo(
+    () => buildEstimatedCodebase(client || {}),
+    [client?.code, client?.name, pricing.monthlyCost],
+  );
+  const repoFiles = codebaseFiles.length ? codebaseFiles : autoCodebase.files;
+  const repoPath = profile.repositoryPath || autoCodebase.repositoryPath;
+  // Terminal tab: use the provider's published records if any, otherwise a transcript generated from the company + contract amount.
+  const termCtx = getTerminalContext(client || {}, billingNow);
+  const autoTerminal = useMemo(
+    () =>
+      tab === "Terminal"
+        ? buildEstimatedTerminal(client || {}, latest, new Date())
+        : [],
+    [tab, tick, client?.code, client?.name, pricing.monthlyCost],
+  );
+  const termEntries = terminalEntries.length ? terminalEntries : autoTerminal;
+  const termIsSample = terminalEntries.length === 0;
   const chosenFile =
-    codebaseFiles.find((item) => item._id === fileId) ||
-    codebaseFiles[0] ||
-    null;
+    repoFiles.find((item) => item._id === fileId) || repoFiles[0] || null;
   const savedServiceResources = clientResources.filter(
     (resource) =>
       isUsableResourceRecord(resource) &&
@@ -1005,15 +1023,26 @@ export default function CompanyDashboard({
                 <h3>
                   <Folder size={14} /> Codebase explorer
                 </h3>
-                <p>Repository file information published by your provider</p>
+                <p>
+                  {codebaseFiles.length ? (
+                    "Repository file information published by your provider"
+                  ) : (
+                    <>
+                      {client.name} · {repoFiles.length} files{" "}
+                      <span className="estimated-inline-label">
+                        AUTO-GENERATED SAMPLE
+                      </span>
+                    </>
+                  )}
+                </p>
               </div>
               <span className="status connected">Read-only</span>
             </div>
             <div className="repo-path">
-              {profile.repositoryPath || "Repository path not configured"}
+              {repoPath || "Repository path not configured"}
             </div>
             <div className="file-tree">
-              {codebaseFiles.map((item) => (
+              {repoFiles.map((item) => (
                 <button
                   key={item._id || item.path}
                   className={`tree-node ${chosenFile?._id === item._id ? "picked" : ""}`}
@@ -1060,39 +1089,70 @@ export default function CompanyDashboard({
                 <i className="terminal-dot" />
               </div>
               <p>
-                Read-only output notes supplied by your cloud administrator ·{" "}
-                {client.name}
+                {termIsSample ? (
+                  <>
+                    Read-only console transcript · {client.name}{" "}
+                    <span className="estimated-inline-label">
+                      AUTO-GENERATED SAMPLE
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Read-only output notes supplied by your cloud administrator
+                    · {client.name}
+                  </>
+                )}
               </p>
             </div>
             <span className="terminal-connection">READ ONLY</span>
           </div>
           <div className="terminal-session-meta">
             <span>
-              <i /> output records: {terminalEntries.length}
+              <i /> output records: {termEntries.length}
             </span>
-            <span>environment: {environment}</span>
-            <span>host: {profile.primaryResource || "Not configured"}</span>
-            <span>path: {profile.repositoryPath || "—"}</span>
+            <span>
+              environment:{" "}
+              {terminalEntries.length ||
+              profile.environment ||
+              profile.environmentName
+                ? environment
+                : termCtx.environment}
+            </span>
+            <span>
+              host:{" "}
+              {profile.primaryResource ||
+                (termIsSample ? termCtx.host : "Not configured")}
+            </span>
+            <span>path: {repoPath || "—"}</span>
           </div>
           <div className="terminal-screen">
             <div className="terminal-screen-toolbar">
-              <span>CONFIGURED OUTPUT</span>
-              <span>Administrator-maintained content</span>
+              <span>
+                {termIsSample ? "SAMPLE OUTPUT" : "CONFIGURED OUTPUT"}
+              </span>
+              <span>
+                {termIsSample
+                  ? `Generated for ${client.name} · refreshes every few seconds`
+                  : "Administrator-maintained content"}
+              </span>
             </div>
             <div className="terminal-output terminal-output-large">
-              {terminalEntries.map((entry, index) => (
+              {termEntries.map((entry, index) => (
                 <React.Fragment key={entry._id || index}>
                   <div className="prompt-line">
                     {entry.command
-                      ? `$ ${entry.command}`
+                      ? `${termIsSample ? `ops@${termCtx.host}:~` : ""}$ ${entry.command}`
                       : `[${entry.level || "INFO"}] ${entry.timestamp ? dateText(entry.timestamp) : ""}`}
                   </div>
                   <div>
                     {entry.output || entry.message || entry.description || ""}
                   </div>
+                  {termIsSample && index < termEntries.length - 1 && (
+                    <div>&nbsp;</div>
+                  )}
                 </React.Fragment>
               ))}
-              {terminalEntries.length === 0 && (
+              {termEntries.length === 0 && (
                 <div>No terminal output records have been published.</div>
               )}
             </div>

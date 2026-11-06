@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Check, Download, Edit3, FileText, Plus, RefreshCw, Shuffle, Trash2, X } from 'lucide-react';
+import { ArrowUpRight, Check, Download, Edit3, FileText, Plus, RefreshCw, Search, Shuffle, Trash2, X } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 const money = (value, currency = 'INR') => {
@@ -48,6 +48,32 @@ export default function InvoiceManager({ token, invoices, clients, currency, onS
   const sorted = useMemo(() => [...invoices].sort((a, b) =>
     String(b.data?.periodMonth || b.data?.issueDate || '').localeCompare(String(a.data?.periodMonth || a.data?.issueDate || ''))), [invoices]);
 
+  // Filters for the "All invoices" table
+  const emptyFilters = { search: '', client: '', status: '', from: '', to: '', order: 'newest' };
+  const [filters, setFilters] = useState(emptyFilters);
+  const setFilter = (key, value) => setFilters(f => ({ ...f, [key]: value }));
+  const filtersActive = Object.keys(emptyFilters).some(k => filters[k] !== emptyFilters[k]);
+  const periodKey = r => String(r.data?.periodMonth || r.data?.issueDate || '').slice(0, 7);
+  const clientOptions = useMemo(() => [...new Set(invoices.map(r => r.data?.clientName).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [invoices]);
+  const visible = useMemo(() => {
+    const q = filters.search.trim().toLowerCase();
+    const rows = sorted.filter(r => {
+      const d = r.data || {};
+      if (filters.client && d.clientName !== filters.client) return false;
+      if (filters.status && (d.status || 'Pending') !== filters.status) return false;
+      const key = periodKey(r);
+      if (filters.from && (!key || key < filters.from)) return false;
+      if (filters.to && (!key || key > filters.to)) return false;
+      if (q && !`${d.number || ''} ${r.title || ''} ${d.clientName || ''} ${d.periodLabel || ''} ${d.status || ''} ${d.amount ?? ''}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    if (filters.order === 'oldest') rows.reverse();
+    else if (filters.order === 'high') rows.sort((a, b) => Number(b.data?.amount || 0) - Number(a.data?.amount || 0));
+    else if (filters.order === 'low') rows.sort((a, b) => Number(a.data?.amount || 0) - Number(b.data?.amount || 0));
+    return rows;
+  }, [sorted, filters]);
+  const visibleTotal = visible.reduce((sum, r) => sum + Number(r.data?.amount || 0), 0);
+
   const batches = useMemo(() => {
     const map = new Map();
     for (const r of invoices) {
@@ -85,10 +111,20 @@ export default function InvoiceManager({ token, invoices, clients, currency, onS
       </tbody></table></div></section>}
 
     <section className="cl-panel cl-table-panel">
-      <div className="cl-panel-head"><div><h3>All invoices</h3><p>{sorted.length} saved invoice{sorted.length === 1 ? '' : 's'} · newest period first</p></div>
+      <div className="cl-panel-head"><div><h3>All invoices</h3><p>{filtersActive ? `Showing ${visible.length} of ${sorted.length} invoice${sorted.length === 1 ? '' : 's'} · total ${money(visibleTotal, currency)}` : `${sorted.length} saved invoice${sorted.length === 1 ? '' : 's'} · total ${money(visibleTotal, currency)}`}</p></div>
 </div>
-      {sorted.length ? <div className="cl-table-scroll"><table className="cl-table"><thead><tr><th>INVOICE</th><th>CLIENT</th><th>PERIOD</th><th>DUE DATE</th><th>AMOUNT</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
-        {sorted.map(r => <tr key={r._id}>
+      {sorted.length > 0 && <div className="cl-filter-bar">
+        <label className="cl-filter search"><Search size={13}/><input value={filters.search} onChange={e => setFilter('search', e.target.value)} placeholder="Search invoice no., company, period, amount…"/></label>
+        <label className="cl-filter"><span>Company</span><select value={filters.client} onChange={e => setFilter('client', e.target.value)}><option value="">All companies</option>{clientOptions.map(name => <option key={name}>{name}</option>)}</select></label>
+        <label className="cl-filter"><span>Status</span><select value={filters.status} onChange={e => setFilter('status', e.target.value)}><option value="">All statuses</option>{['Draft', 'Pending', 'Paid', 'Overdue', 'Cancelled'].map(s => <option key={s}>{s}</option>)}</select></label>
+        <label className="cl-filter"><span>Period from</span><input type="month" value={filters.from} max={filters.to || undefined} onChange={e => setFilter('from', e.target.value)}/></label>
+        <label className="cl-filter"><span>Period to</span><input type="month" value={filters.to} min={filters.from || undefined} onChange={e => setFilter('to', e.target.value)}/></label>
+        <label className="cl-filter"><span>Sort by</span><select value={filters.order} onChange={e => setFilter('order', e.target.value)}><option value="newest">Newest period</option><option value="oldest">Oldest period</option><option value="high">Amount: high to low</option><option value="low">Amount: low to high</option></select></label>
+        {filtersActive && <button type="button" className="cl-button secondary small cl-filter-clear" onClick={() => setFilters(emptyFilters)}><X size={13}/> Clear filters</button>}
+      </div>}
+      {sorted.length && !visible.length ? <div className="cl-empty"><div className="cl-empty-icon"><Search size={20}/></div><h3>No invoices match these filters</h3><p>Try a different company, status or period, or clear the filters.</p></div>
+      : sorted.length ? <div className="cl-table-scroll"><table className="cl-table"><thead><tr><th>INVOICE</th><th>CLIENT</th><th>PERIOD</th><th>DUE DATE</th><th>AMOUNT</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
+        {visible.map(r => <tr key={r._id}>
           <td><b>{r.data?.number || r.title}</b></td><td>{r.data?.clientName || '—'}</td><td>{r.data?.periodLabel || dateText(r.data?.issueDate)}</td>
           <td>{dateText(r.data?.dueDate)}</td><td><b>{money(r.data?.amount, r.data?.currency || currency)}</b></td><td><select className="cl-status-select" value={r.data?.status || 'Pending'} onChange={e => onStatus(r, e.target.value)}>{['Draft', 'Pending', 'Paid', 'Overdue', 'Cancelled'].map(s => <option key={s}>{s}</option>)}</select></td>
           <td><div className="cl-row-actions">
