@@ -150,9 +150,17 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
   const charge = hasCharge ? Number(d.serviceCharge) : 0;
   const total = Number(d.amount || 0);
   const diff = Math.round((total - base - charge) * 100) / 100;
-  const hasTax = Number(d.taxRate) > 0 && diff > 0;
-  const tax = hasTax ? diff : 0;
-  const rounding = hasTax ? 0 : Math.abs(diff) >= 0.005 ? diff : 0;
+  // GST only appears on bills that were created as GST invoices.
+  const isGst = d.gstApplied === true;
+  const cgst = isGst ? Number(d.cgst || 0) : 0;
+  const sgst = isGst ? Number(d.sgst || 0) : 0;
+  const igst = isGst ? Number(d.igst || 0) : 0;
+  const gstTotal = cgst + sgst + igst;
+  const taxable = isGst ? base + charge : 0;
+  const rounding =
+    Math.abs(diff - gstTotal) >= 0.005
+      ? Math.round((diff - gstTotal) * 100) / 100
+      : 0;
   const received = isPaid ? total : 0;
   const balance = Math.max(0, total - received);
   const period =
@@ -173,18 +181,27 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
     .filter(Boolean)
     .join("   ·   ");
   if (contactBits) text(contactBits, L, 67, { width: W * 0.6 });
+  if (isGst) {
+    setFont(true, 8.5, INK);
+    text(`GSTIN: ${d.sellerGstin || settings.gstin || "—"}`, L, 79, {
+      width: W * 0.6,
+    });
+  }
 
-  setFont(true, 28, BLUE);
-  text("INVOICE", L, 26, { width: W, align: "right" });
+  setFont(true, isGst ? 24 : 28, BLUE);
+  text(isGst ? "TAX INVOICE" : "INVOICE", L, isGst ? 29 : 26, {
+    width: W,
+    align: "right",
+  });
   setFont(false, 9, MUTED);
   text(`Statement of cloud services  ·  ${period}`, L, 62, {
     width: W,
     align: "right",
   });
-  hline(88, NAVY, 1.2);
+  hline(isGst ? 94 : 88, NAVY, 1.2);
 
   /* ── Left: account + bill-to ───────────────────────────────────────── */
-  let y = 104;
+  let y = isGst ? 108 : 104;
   label("Account number", L, y);
   setFont(true, 17, INK);
   text(d.clientCode || client.code || "—", L, y + 12, { width: 240 });
@@ -202,7 +219,9 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
     client.address,
     client.email,
     client.phone,
-    client.gstin && `GSTIN: ${client.gstin}`,
+    isGst &&
+      (d.buyerGstin || client.gstin) &&
+      `GSTIN: ${d.buyerGstin || client.gstin}`,
   ].filter(Boolean);
   setFont(false, 9, INK);
   for (const line of billLines) {
@@ -222,8 +241,14 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
     ["Billing cycle", d.billingCycle || client.billingCycle || "—"],
     ["Due date", fmtDate(d.dueDate)],
     ["Status", cap(status)],
+    ...(isGst
+      ? [
+          ["Place of supply", d.placeOfSupply || "—"],
+          ["SAC code", d.gstSac || "—"],
+        ]
+      : []),
   ];
-  let ry = 104;
+  let ry = isGst ? 108 : 104;
   doc.rect(bx, ry, bw, 22).fill(BAND);
   setFont(true, 10, NAVY);
   text("Invoice summary", bx + 10, ry + 6.5);
@@ -310,10 +335,6 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
   if (!lines.some((line) => /service charge/i.test(line.description))) {
     lines.push({ description: "Mindboxx service charge (0%)", amount: 0 });
   }
-  if (tax > 0)
-    lines.push({ description: `Tax / GST @ ${d.taxRate}%`, amount: tax });
-  if (rounding)
-    lines.push({ description: "Rounding adjustment", amount: rounding });
   lines.forEach((item, i) => {
     const descH = doc
       .font("Helvetica")
@@ -338,7 +359,7 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
   });
 
   /* ── Totals ────────────────────────────────────────────────────────── */
-  y = needSpace(y, 120);
+  y = needSpace(y, isGst ? 190 : 120);
   const tx = L + W * 0.45;
   const tw = R - tx;
   const totRow = (name, value, opts = {}) => {
@@ -348,6 +369,17 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
     y += 21;
     hline(y, RULE, 0.5, tx, R);
   };
+  if (isGst) {
+    totRow("Taxable value", money(taxable, currency));
+    const half = Number(d.gstRate || 0) / 2;
+    if (igst)
+      totRow(`IGST @ ${Number(d.gstRate)}%`, money(igst, currency));
+    else {
+      totRow(`CGST @ ${half}%`, money(cgst, currency));
+      totRow(`SGST @ ${half}%`, money(sgst, currency));
+    }
+  }
+  if (rounding) totRow("Rounding adjustment", money(rounding, currency));
   totRow("Total for this invoice", money(total, currency), {
     bold: true,
     size: 10,
@@ -371,6 +403,13 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
     text(`Amount in words:  ${words}`, L + 12, y + 7, { width: W - 24 });
     y += 20;
   } else y += 10;
+  if (isGst && d.sellerAddress) {
+    setFont(false, 8, MUTED);
+    doc.text(`Registered office:  ${d.sellerAddress}`, L + 12, y, {
+      width: W - 24,
+    });
+    y = doc.y + 6;
+  }
 
   return { startPage, number, org, settings };
 }
