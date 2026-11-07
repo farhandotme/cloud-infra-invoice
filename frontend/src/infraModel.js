@@ -89,7 +89,7 @@ export function buildEstimatedRuntimeSpecs(client = {}, now = new Date()) {
       value:
         tier === 1
           ? "Nginx reverse proxy · 1 node"
-          : `AWS Application Load Balancer · ${apiReplicas} targets · ${zones}-AZ`,
+          : `Load Balancer · ${apiReplicas} targets · ${zones}-AZ`,
     },
     {
       label: "AUTO SCALING",
@@ -100,7 +100,7 @@ export function buildEstimatedRuntimeSpecs(client = {}, now = new Date()) {
     },
     {
       label: "CDN",
-      value: `Amazon CloudFront · ${edge} edge locations · ${cacheHit}% cache hit${tier === 3 ? " · Origin Shield" : ""}`,
+      value: `CloudFront · ${edge} edge locations · ${cacheHit}% cache hit${tier === 3 ? " · Origin Shield" : ""}`,
     },
     {
       label: "SSL / TLS",
@@ -111,18 +111,15 @@ export function buildEstimatedRuntimeSpecs(client = {}, now = new Date()) {
       value:
         tier === 1
           ? `Security groups · ${wafRules} inbound rules`
-          : `AWS WAF · OWASP Top 10 · ${wafRules} rules${tier === 3 ? " · rate limiting" : ""}`,
+          : `WAF · OWASP Top 10 · ${wafRules} rules${tier === 3 ? " · rate limiting" : ""}`,
     },
     {
       label: "DDOS PROTECTION",
-      value:
-        tier === 3
-          ? "AWS Shield Advanced · 24×7 response"
-          : "AWS Shield Standard",
+      value: tier === 3 ? "Shield Advanced · 24×7 response" : "Shield Standard",
     },
     {
       label: "SECURITY",
-      value: `${tier === 1 ? "SSH key-only access" : "SSH via SSM Session Manager"} · AES-256 at rest${tier >= 2 ? " · secrets in AWS Secrets Manager" : ""}`,
+      value: `${tier === 1 ? "SSH key-only access" : "SSH via SSM Session Manager"} · AES-256 at rest${tier >= 2 ? " · secrets in Secrets Manager" : ""}`,
     },
     {
       label: "QUEUE WORKER",
@@ -130,7 +127,7 @@ export function buildEstimatedRuntimeSpecs(client = {}, now = new Date()) {
     },
     {
       label: "SMS GATEWAY",
-      value: `Amazon SNS · ${inr(sms)} SMS/month${tier === 3 ? " · Pinpoint campaigns" : ""} · DLT registered`,
+      value: `SNS · ${inr(sms)} SMS/month${tier === 3 ? " · Pinpoint campaigns" : ""} · DLT registered`,
     },
     {
       label: "DATABASE",
