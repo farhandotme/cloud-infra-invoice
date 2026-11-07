@@ -24,6 +24,7 @@ import {
   CalendarDays,
   Filter,
   FileText,
+  Lock,
   CircleHelp,
   ShieldCheck,
   Zap,
@@ -220,6 +221,7 @@ function mapRecords(records = {}) {
     date: dateText(invoice.issueDate || invoice.date),
     due: dateText(invoice.dueDate || invoice.due),
     amount: Number(invoice.amount || 0),
+    locked: invoice.locked === true,
     cycle: invoice.billingCycle || invoice.cycle || "Monthly",
   }));
   return {
@@ -862,7 +864,7 @@ function Dashboard({
       },
       invoiceCount: {
         label: "Invoice count",
-        value: numberText(invoices.length),
+        value: numberText(invoices.filter((i) => !i.locked).length),
         change: "Published billing records",
         footnote: "Assigned to this client",
         icon: "database",
@@ -1310,8 +1312,12 @@ function Dashboard({
                     <small>{invoice.client}</small>
                   </div>
                   <div className="invoice-amount">
-                    <b>{money(invoice.amount, currency)}</b>
-                    <Status status={invoice.status} />
+                    {invoice.locked ? (
+                      <span className="inv-locked-amount">Based on usage</span>
+                    ) : (
+                      <b>{money(invoice.amount, currency)}</b>
+                    )}
+                    <Status status={invoice.locked ? "Upcoming" : invoice.status} />
                   </div>
                 </div>
               ))}
@@ -1853,7 +1859,11 @@ function Invoices({ invoices, currency }) {
     const q = query.trim().toLowerCase();
     const list = invoices.filter((invoice) => {
       if (cycle !== "All cycles" && invoice.cycle !== cycle) return false;
-      if (status !== "All statuses" && invoice.status !== status) return false;
+      if (
+        status !== "All statuses" &&
+        (invoice.locked ? "Upcoming" : invoice.status) !== status
+      )
+        return false;
       const key = periodOf(invoice);
       if (from && (!key || key < from)) return false;
       if (to && (!key || key > to)) return false;
@@ -1901,7 +1911,7 @@ function Invoices({ invoices, currency }) {
         <StatCard
           label="Total invoiced"
           value={money(total, currency)}
-          change={`${invoices.length} invoices`}
+          change={`${invoices.filter((i) => !i.locked).length} invoices`}
           icon={ReceiptText}
           foot="published invoices"
         />
@@ -1922,7 +1932,7 @@ function Invoices({ invoices, currency }) {
         />
         <StatCard
           label="Invoice count"
-          value={numberText(invoices.length)}
+          value={numberText(invoices.filter((i) => !i.locked).length)}
           change="Stored records"
           icon={FileText}
           foot="billing history"
@@ -1958,6 +1968,7 @@ function Invoices({ invoices, currency }) {
             <option>All statuses</option>
             <option>Paid</option>
             <option>Pending</option>
+            <option>Upcoming</option>
             <option>Overdue</option>
             <option>Draft</option>
             <option>Cancelled</option>
@@ -2040,13 +2051,31 @@ function Invoices({ invoices, currency }) {
                   <td>{invoice.date}</td>
                   <td>{invoice.due}</td>
                   <td>
-                    <b>{money(invoice.amount, invoice.currency || currency)}</b>
+                    {invoice.locked ? (
+                      <span
+                        className="inv-locked-amount"
+                        title="The final amount follows your actual usage and is shown on your dashboard"
+                      >
+                        Based on usage
+                      </span>
+                    ) : (
+                      <b>
+                        {money(invoice.amount, invoice.currency || currency)}
+                      </b>
+                    )}
                   </td>
                   <td>
-                    <Status status={invoice.status} />
+                    <Status status={invoice.locked ? "Upcoming" : invoice.status} />
                   </td>
                   <td>
-                    {invoice.pdfUrl ? (
+                    {invoice.locked ? (
+                      <span
+                        className="inv-locked-doc"
+                        title="Available once the billing month ends"
+                      >
+                        <Lock size={13} /> {dateText(invoice.unlocksOn)}
+                      </span>
+                    ) : invoice.pdfUrl ? (
                       <a
                         className="icon-btn small"
                         href={invoice.pdfUrl}
@@ -2087,7 +2116,8 @@ function Invoices({ invoices, currency }) {
           <b>Billing records</b>
           <p>
             Invoice records and document links are published by your cloud
-            provider. Contact support if you need a copy or clarification.
+            provider. Upcoming months are billed on actual usage — they unlock
+            as a downloadable invoice once the month ends. Contact support if you need a copy or clarification.
           </p>
         </div>
       </div>
