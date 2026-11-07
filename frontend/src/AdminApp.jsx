@@ -82,6 +82,8 @@ const settingFields = [
   ["organizationName", "Your company name (shown on invoices)"],
   ["brandName", "Portal brand name"],
   ["supportEmail", "Support email", "email"],
+  ["supportUrl", "Website (shown on invoices)"],
+  ["workspaceLabel", "Tagline under company name on invoices"],
   [
     "currency",
     "Default currency",
