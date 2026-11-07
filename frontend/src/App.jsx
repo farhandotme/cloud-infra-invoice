@@ -25,6 +25,7 @@ import {
   Filter,
   FileText,
   Lock,
+  LogOut,
   CircleHelp,
   ShieldCheck,
   Zap,
@@ -50,6 +51,11 @@ import {
 } from "recharts";
 import CompanyDashboard from "./CompanyDashboard.jsx";
 import { makeLiveUsageSeries } from "./liveTelemetry.js";
+import {
+  downloadPortalFile,
+  portalFetch,
+  signOutPortal,
+} from "./portalSession.js";
 import {
   buildTransactionsFromInvoices,
   buildEstimatedTransactions,
@@ -179,7 +185,7 @@ const nav = [
 ];
 
 async function fetchPortal() {
-  const response = await fetch(`${API}/api/public/portal`, {
+  const response = await portalFetch("/api/public/portal", {
     headers: { Accept: "application/json" },
   });
   const payload = await response.json().catch(() => ({}));
@@ -487,7 +493,15 @@ function App() {
               <b>{selectedClient?.name || "Customer"}</b>
               <span>Customer workspace</span>
             </div>
-            <MoreHorizontal size={18} />
+            <button
+              type="button"
+              className="signout-btn"
+              title="Sign out"
+              aria-label="Sign out"
+              onClick={signOutPortal}
+            >
+              <LogOut size={17} />
+            </button>
           </div>
         </div>
       </aside>
@@ -2086,15 +2100,19 @@ function Invoices({ invoices, currency }) {
                         <ExternalLink size={15} />
                       </a>
                     ) : invoice._id ? (
-                      <a
+                      <button
+                        type="button"
                         className="icon-btn small"
-                        href={`${API}/api/public/invoices/${invoice._id}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
                         title="Download invoice PDF"
+                        onClick={() =>
+                          downloadPortalFile(
+                            `/api/public/invoices/${invoice._id}/pdf`,
+                            `${invoice.id || "invoice"}.pdf`,
+                          ).catch((err) => window.alert(err.message))
+                        }
                       >
                         <Download size={15} />
-                      </a>
+                      </button>
                     ) : (
                       "—"
                     )}

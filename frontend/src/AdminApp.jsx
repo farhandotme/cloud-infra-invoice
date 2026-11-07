@@ -32,13 +32,7 @@ import {
   YAxis,
 } from "recharts";
 import InvoiceManager from "./InvoiceManager.jsx";
-import {
-  DEFAULT_SAC,
-  GST_RATES,
-  cleanGstin,
-  gstinState,
-  isValidGstin,
-} from "./gst.js";
+import { DEFAULT_SAC, GST_RATES, cleanGstin, gstinState, isValidGstin } from "./gst.js";
 
 const API = import.meta.env.VITE_API_URL || "";
 const money = (value, currency = "INR") => {
@@ -1035,9 +1029,7 @@ function GstSettings({ draft, setDraft }) {
               value={draft.gstSac || ""}
               placeholder={DEFAULT_SAC}
               inputMode="numeric"
-              onChange={(e) =>
-                set("gstSac", e.target.value.replace(/\D/g, "").slice(0, 8))
-              }
+              onChange={(e) => set("gstSac", e.target.value.replace(/\D/g, "").slice(0, 8))}
             />
             <small className="cl-field-hint">
               998315 = hosting & IT infrastructure services.
