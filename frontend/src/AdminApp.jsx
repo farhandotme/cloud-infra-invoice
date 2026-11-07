@@ -32,6 +32,13 @@ import {
   YAxis,
 } from "recharts";
 import InvoiceManager from "./InvoiceManager.jsx";
+import {
+  DEFAULT_SAC,
+  GST_RATES,
+  cleanGstin,
+  gstinState,
+  isValidGstin,
+} from "./gst.js";
 
 const API = import.meta.env.VITE_API_URL || "";
 const money = (value, currency = "INR") => {
@@ -481,6 +488,8 @@ function App() {
               invoices={invoices}
               clients={clients}
               currency={currency}
+              settings={settings}
+              onOpenSettings={() => setPage("Settings")}
               preselect={generateFor}
               onPreselectUsed={() => setGenerateFor("")}
               onStatus={setInvoiceStatus}
@@ -973,6 +982,104 @@ function ClientEditor({ record, onClose, onSave }) {
   );
 }
 
+function GstSettings({ draft, setDraft }) {
+  const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
+  const on = Boolean(draft.gstRegistered);
+  const gstin = cleanGstin(draft.gstin);
+  const state = gstinState(gstin);
+  const valid = isValidGstin(gstin);
+  return (
+    <div className="cl-gst-settings">
+      <div className="cl-panel-head">
+        <div>
+          <h3>GST details</h3>
+          <p>
+            Your GSTIN is printed only on invoices where you switch GST on.
+            Other bills never show it.
+          </p>
+        </div>
+      </div>
+      <label className="cl-check cl-gst-toggle">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => set("gstRegistered", e.target.checked)}
+        />{" "}
+        <span>My company is registered under GST</span>
+      </label>
+      {on && (
+        <div className="cl-settings-grid">
+          <label className="cl-field">
+            <span>
+              Your GSTIN<em>*</em>
+            </span>
+            <input
+              value={draft.gstin || ""}
+              maxLength={15}
+              placeholder="27AAPFU0939F1ZV"
+              onChange={(e) => set("gstin", cleanGstin(e.target.value))}
+            />
+            <small
+              className={`cl-field-hint ${gstin.length === 15 && !valid ? "cl-bad" : ""}`}
+            >
+              {gstin.length < 15
+                ? "15 characters. The first two digits are your state code."
+                : valid
+                  ? `Valid · registered in ${state.name} (${state.code})`
+                  : "Not a valid GSTIN — check the state code and the last character."}
+            </small>
+          </label>
+          <label className="cl-field">
+            <span>Default SAC / HSN code</span>
+            <input
+              value={draft.gstSac || ""}
+              placeholder={DEFAULT_SAC}
+              inputMode="numeric"
+              onChange={(e) =>
+                set("gstSac", e.target.value.replace(/\D/g, "").slice(0, 8))
+              }
+            />
+            <small className="cl-field-hint">
+              998315 = hosting & IT infrastructure services.
+            </small>
+          </label>
+          <label className="cl-field">
+            <span>Default GST rate</span>
+            <select
+              value={draft.gstDefaultRate || "18"}
+              onChange={(e) => set("gstDefaultRate", e.target.value)}
+            >
+              {GST_RATES.map((r) => (
+                <option key={r} value={r}>
+                  {r}%
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="cl-field">
+            <span>Switch GST on by default for new invoices</span>
+            <select
+              value={draft.gstDefaultOn ? "yes" : "no"}
+              onChange={(e) => set("gstDefaultOn", e.target.value === "yes")}
+            >
+              <option value="no">No — I decide each time</option>
+              <option value="yes">Yes</option>
+            </select>
+          </label>
+          <label className="cl-field wide">
+            <span>Registered address (printed on GST invoices)</span>
+            <textarea
+              rows={2}
+              value={draft.gstAddress || ""}
+              onChange={(e) => set("gstAddress", e.target.value)}
+            />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({
   draft,
   setDraft,
@@ -1016,6 +1123,7 @@ function SettingsPage({
             </label>
           ))}
         </div>
+        <GstSettings draft={draft} setDraft={setDraft} />
         <div className="cl-form-footer">
           <span>Applies to invoices generated or downloaded from now on.</span>
           <button className="cl-button primary">
