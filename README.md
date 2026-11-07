@@ -60,7 +60,8 @@ The Vite development server proxies `/api` requests to `http://localhost:4000` b
 ## 3. Using it
 
 1. **Clients → Add client:** company name, Monthly or Yearly, and the amount. Contact/GSTIN/address are optional and appear on the invoice PDF.
-2. **Settings:** set your own company name, support email and invoice prefix (shown on the PDFs).
+2. **Settings → GST details:** tick *My company is registered under GST*, enter your GSTIN (checksum-validated), default SAC code/rate and registered address.
+3. **Settings:** set your own company name, support email and invoice prefix (shown on the PDFs).
 3. Generate invoices (below).
 
 ## Invoice generator (Admin → Invoices → Generate invoices)
@@ -105,3 +106,10 @@ Older incomplete Infrastructure records whose saved values are just field labels
 The resource utilization chart uses separate, correctly labelled scales: CPU and memory are percentages (0–100%) on the left; network throughput is Mbps on the right. Tooltips round values to one decimal place and show the local timestamp. The 1-hour, 24-hour and 7-day series span their full selected windows (13 points at 5-minute intervals, 25 points at hourly intervals, and 29 points at 6-hour intervals). The dashboard averages are labelled as averages so they are not confused with an individual hovered sample.
 
 The contract accrual chart uses a fixed scale equal to the full allocation for the selected range. In Daily view, the solid line shows accrued amount through the current local time and a dashed line shows the deterministic contract run-rate to midnight; future values are explicitly a projection, not an already incurred charge. Weekly, Monthly and Yearly views show elapsed contract accrual against the full seven-day, calendar-month or calendar-year allocation. Chart axes use the configured currency, while tooltips show precise amounts.
+
+
+## GST on invoices
+
+- In **Invoices → Generate**, the *Add GST* box decides per run whether the bills are GST invoices. Off = plain invoice, no GST, no GSTIN anywhere on it.
+- On = **TAX INVOICE** with your GSTIN, the client's GSTIN, place of supply, SAC code and a taxable value / CGST + SGST (same state) or IGST (other state) breakdown. *Tax type* is auto-detected from the two GSTIN state codes and can be overridden; rate is 5/12/18/28% or custom.
+- GST is charged on the amount plus any service charge. Each bill stores a snapshot of the GSTINs and tax figures, so later Settings changes never alter an issued invoice.

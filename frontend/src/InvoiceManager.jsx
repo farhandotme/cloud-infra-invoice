@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { DEFAULT_SAC, GST_RATES, gstinState, isValidGstin } from "./gst.js";
 
 const API = import.meta.env.VITE_API_URL || "";
 const money = (value, currency = "INR") => {
@@ -93,6 +94,8 @@ export default function InvoiceManager({
   invoices,
   clients,
   currency,
+  settings = {},
+  onOpenSettings,
   onStatus,
   onDelete,
   preselect,
@@ -444,6 +447,11 @@ export default function InvoiceManager({
                   <tr key={r._id}>
                     <td>
                       <b>{r.data?.number || r.title}</b>
+                      {r.data?.gstApplied && (
+                        <span className="cl-gst-badge" title={`${r.data.gstType} @ ${r.data.gstRate}%`}>
+                          GST
+                        </span>
+                      )}
                     </td>
                     <td>{r.data?.clientName || "—"}</td>
                     <td>
@@ -520,6 +528,8 @@ export default function InvoiceManager({
       {open && (
         <GenerateModal
           token={token}
+          settings={settings}
+          onOpenSettings={onOpenSettings}
           clients={clients}
           startClient={startClient}
           onClose={() => setOpen(false)}
@@ -537,6 +547,8 @@ export default function InvoiceManager({
 }
 
 function GenerateModal({
+  settings = {},
+  onOpenSettings,
   token,
   clients,
   startClient,
@@ -560,6 +572,11 @@ function GenerateModal({
   const [status, setStatus] = useState("Pending");
   const [charge, setCharge] = useState(false);
   const [chargePct, setChargePct] = useState("10");
+  const gstReady = Boolean(settings.gstRegistered && isValidGstin(settings.gstin));
+  const [gstOn, setGstOn] = useState(gstReady && Boolean(settings.gstDefaultOn));
+  const [gstRate, setGstRate] = useState(String(settings.gstDefaultRate || "18"));
+  const [supplyType, setSupplyType] = useState("auto");
+  const [sac, setSac] = useState(settings.gstSac || DEFAULT_SAC);
   const [plan, setPlan] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -583,12 +600,30 @@ function GenerateModal({
     lastPeriod && lastPeriod < currentMonth() ? "Paid" : "Pending";
   const cur = client?.data?.currency || "INR";
   const months = monthCount(startMonth, endMonth);
+  const gstBody = {
+    enabled: gstOn,
+    rate: Number(gstRate),
+    supplyType,
+    sac,
+  };
+  const clientGstin = client?.data?.gstin;
+  const clientState = isValidGstin(clientGstin) ? gstinState(clientGstin) : null;
+  const sellerState = gstinState(settings.gstin);
+  const autoType =
+    clientState && sellerState
+      ? clientState.code === sellerState.code
+        ? "intra"
+        : "inter"
+      : "intra";
+  const effectiveType = supplyType === "auto" ? autoType : supplyType;
 
   const preview = async () => {
     setBusy(true);
     setError("");
     try {
       const body = {
+        clientId,
+        gst: gstBody,
         mode,
         amount: Number(amount),
         month,
@@ -630,6 +665,7 @@ function GenerateModal({
           status,
           serviceCharge: charge,
           serviceChargePct: Number(chargePct),
+          gst: gstBody,
         },
       });
       const data = await response.json();
@@ -859,6 +895,115 @@ function GenerateModal({
                     : "Leave off and no service charge appears on the invoices."}
                 </small>
               </div>
+              <div className="cl-field wide cl-charge-box cl-gst-box">
+                <label className="cl-check">
+                  <input
+                    type="checkbox"
+                    checked={gstOn}
+                    disabled={!gstReady}
+                    onChange={(e) => {
+                      setGstOn(e.target.checked);
+                      invalidate();
+                    }}
+                  />{" "}
+                  <span>Add GST to these invoices (Tax Invoice)</span>
+                </label>
+                {!gstReady && (
+                  <small className="cl-field-hint">
+                    Add your company GSTIN first.{" "}
+                    {onOpenSettings && (
+                      <button
+                        type="button"
+                        className="cl-link"
+                        onClick={() => {
+                          onClose();
+                          onOpenSettings();
+                        }}
+                      >
+                        Open Settings → GST details
+                      </button>
+                    )}
+                  </small>
+                )}
+                {gstOn && (
+                  <>
+                    <div className="cl-gst-grid">
+                      <label className="cl-field">
+                        <span>GST rate</span>
+                        <select
+                          value={GST_RATES.includes(Number(gstRate)) ? gstRate : "custom"}
+                          onChange={(e) => {
+                            setGstRate(e.target.value === "custom" ? "" : e.target.value);
+                            invalidate();
+                          }}
+                        >
+                          {GST_RATES.map((r) => (
+                            <option key={r} value={r}>
+                              {r}%
+                            </option>
+                          ))}
+                          <option value="custom">Custom…</option>
+                        </select>
+                        {!GST_RATES.includes(Number(gstRate)) && (
+                          <input
+                            type="number"
+                            min="0.01"
+                            max="40"
+                            step="0.01"
+                            placeholder="Rate %"
+                            value={gstRate}
+                            onChange={(e) => {
+                              setGstRate(e.target.value);
+                              invalidate();
+                            }}
+                          />
+                        )}
+                      </label>
+                      <label className="cl-field">
+                        <span>Tax type</span>
+                        <select
+                          value={supplyType}
+                          onChange={(e) => {
+                            setSupplyType(e.target.value);
+                            invalidate();
+                          }}
+                        >
+                          <option value="auto">
+                            Auto ({autoType === "inter" ? "IGST" : "CGST + SGST"})
+                          </option>
+                          <option value="intra">CGST + SGST (same state)</option>
+                          <option value="inter">IGST (other state)</option>
+                        </select>
+                      </label>
+                      <label className="cl-field">
+                        <span>SAC / HSN code</span>
+                        <input
+                          value={sac}
+                          inputMode="numeric"
+                          onChange={(e) => {
+                            setSac(e.target.value.replace(/\D/g, "").slice(0, 8));
+                            invalidate();
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <small className="cl-field-hint">
+                      GST is added on top of the amount{charge ? " plus the service charge" : ""}. Your GSTIN
+                      {clientGstin ? " and the client's GSTIN appear" : " appears"} on the
+                      invoices.
+                      {supplyType === "auto" &&
+                        !clientState &&
+                        " Client has no valid GSTIN, so same-state tax is assumed — change Tax type if they are in another state."}
+                      {effectiveType === "inter" ? " Charged as IGST." : " Charged as CGST + SGST."}
+                    </small>
+                  </>
+                )}
+                {!gstOn && gstReady && (
+                  <small className="cl-field-hint">
+                    Off: a plain invoice with no GST and no GSTIN on it.
+                  </small>
+                )}
+              </div>
             </div>
 
             {plan && (
@@ -887,10 +1032,17 @@ function GenerateModal({
                         <th>MONTH</th>
                         <th>AMOUNT</th>
                         {plan.serviceChargePct > 0 && (
-                          <>
-                            <th>MINDBOXX CHARGE ({plan.serviceChargePct}%)</th>
-                            <th>INVOICE TOTAL</th>
-                          </>
+                          <th>MINDBOXX CHARGE ({plan.serviceChargePct}%)</th>
+                        )}
+                        {plan.gst && (
+                          <th>
+                            {plan.gst.supplyType === "inter"
+                              ? `IGST (${plan.gst.rate}%)`
+                              : `CGST + SGST (${plan.gst.rate}%)`}
+                          </th>
+                        )}
+                        {(plan.serviceChargePct > 0 || plan.gst) && (
+                          <th>INVOICE TOTAL</th>
                         )}
                       </tr>
                     </thead>
@@ -900,10 +1052,11 @@ function GenerateModal({
                           <td>{i.label}</td>
                           <td>{money(i.amount, cur)}</td>
                           {plan.serviceChargePct > 0 && (
-                            <>
-                              <td>{money(i.charge, cur)}</td>
-                              <td>{money(i.total, cur)}</td>
-                            </>
+                            <td>{money(i.charge, cur)}</td>
+                          )}
+                          {plan.gst && <td>{money(i.gstAmount, cur)}</td>}
+                          {(plan.serviceChargePct > 0 || plan.gst) && (
+                            <td>{money(i.total, cur)}</td>
                           )}
                         </tr>
                       ))}
@@ -920,14 +1073,19 @@ function GenerateModal({
                           )}
                         </td>
                         {plan.serviceChargePct > 0 && (
-                          <>
-                            <td>
-                              <b>{money(plan.chargeTotal, cur)}</b>
-                            </td>
-                            <td>
-                              <b>{money(plan.grandTotal, cur)}</b>
-                            </td>
-                          </>
+                          <td>
+                            <b>{money(plan.chargeTotal, cur)}</b>
+                          </td>
+                        )}
+                        {plan.gst && (
+                          <td>
+                            <b>{money(plan.gstTotal, cur)}</b>
+                          </td>
+                        )}
+                        {(plan.serviceChargePct > 0 || plan.gst) && (
+                          <td>
+                            <b>{money(plan.grandTotal, cur)}</b>
+                          </td>
                         )}
                       </tr>
                     </tbody>
