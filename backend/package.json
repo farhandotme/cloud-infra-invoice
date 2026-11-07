@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "portal:reset-2fa": "node scripts/reset-portal-2fa.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -16,6 +17,8 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
-    "pdfkit": "^0.15.2"
+    "nodemailer": "^6.9.16",
+    "pdfkit": "^0.15.2",
+    "qrcode": "^1.5.4"
   }
 }
