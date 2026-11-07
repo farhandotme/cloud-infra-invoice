@@ -539,21 +539,6 @@ export default function CompanyDashboard({
                       : "—"}
                   </b>
                 </div>
-                <div>
-                  <small>Agreed contract amount</small>
-                  <b>
-                    {hasRunRate ? (
-                      <>
-                        {cash(pricing.contractAmount, currency)}{" "}
-                        <span className="spend-cycle">
-                          / {pricing.billingCycle.toLowerCase()}
-                        </span>
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </b>
-                </div>
               </div>
               <div className="range-tabs">
                 {[
