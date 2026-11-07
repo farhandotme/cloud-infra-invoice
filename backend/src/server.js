@@ -9,6 +9,8 @@ import authRoutes from "./routes/auth.js";
 import adminRoutes from "./routes/admin.js";
 import invoiceRoutes from "./routes/invoices.js";
 import publicRoutes from "./routes/public.js";
+import portalAuthRoutes from "./routes/portalAuth.js";
+import { requirePortal } from "./middleware/portalAuth.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
@@ -44,7 +46,9 @@ app.get("/api/health", (_req, res) =>
   }),
 );
 app.use("/api/auth", authRoutes);
-app.use("/api/public", publicRoutes);
+app.use("/api/portal-auth", portalAuthRoutes);
+// Customer infrastructure data now needs a portal sign-in (password + authenticator).
+app.use("/api/public", requirePortal, publicRoutes);
 app.use("/api/admin/invoices", invoiceRoutes);
 app.use("/api/admin", adminRoutes);
 
