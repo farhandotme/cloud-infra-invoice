@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { randomBytes } from "crypto";
 import Record from "../models/Record.js";
 import Settings from "../models/Settings.js";
+import { isValidGstin, normalizeGstin, gstinState } from "../services/billing.js";
 import AuditLog from "../models/AuditLog.js";
 import { requireAdmin } from "../middleware/auth.js";
 
@@ -36,6 +37,7 @@ function safeRecord(body, type, existingData = {}) {
   let title = String(body?.title || "").trim();
   if (type === "clients") {
     title = String(data.name || title).trim();
+    if (data.gstin) data.gstin = normalizeGstin(data.gstin);
     const billingCycle =
       String(data.billingCycle || "Monthly").toLowerCase() === "yearly"
         ? "Yearly"
@@ -197,6 +199,31 @@ router.put("/settings", async (req, res, next) => {
     const data = req.body?.settings;
     if (!data || typeof data !== "object" || Array.isArray(data))
       return res.status(400).json({ message: "Settings must be an object." });
+    // Own-company GST details: a registered company needs a real GSTIN.
+    data.gstRegistered = Boolean(data.gstRegistered);
+    data.gstin = normalizeGstin(data.gstin);
+    if (data.gstRegistered) {
+      if (!isValidGstin(data.gstin))
+        return res.status(400).json({
+          message:
+            "That GSTIN is not valid. It has 15 characters, e.g. 27AAPFU0939F1ZV — check the state code and the last character.",
+        });
+      data.gstStateCode = gstinState(data.gstin).code;
+    } else {
+      data.gstin = isValidGstin(data.gstin) ? data.gstin : "";
+      delete data.gstStateCode;
+    }
+    if (data.gstSac && !/^\d{4,8}$/.test(String(data.gstSac).trim()))
+      return res
+        .status(400)
+        .json({ message: "The default SAC / HSN code must be 4 to 8 digits." });
+    if (data.gstDefaultRate !== undefined && data.gstDefaultRate !== "") {
+      const rate = Number(data.gstDefaultRate);
+      if (!Number.isFinite(rate) || rate <= 0 || rate > 40)
+        return res
+          .status(400)
+          .json({ message: "The default GST rate must be between 0.01 and 40." });
+    }
     const doc = await Settings.findOneAndUpdate(
       { key: "main" },
       { $set: { data } },
