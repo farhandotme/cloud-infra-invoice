@@ -1339,9 +1339,7 @@ function Dashboard({
       <div className="provider-strip">
         {connected.slice(0, 3).map((integration, index) => (
           <div key={integration.name || integration.title}>
-            <span
-              className={`provider-icon ${["aws", "do", "vercel"][index] || "aws"}`}
-            >
+            <span className={`provider-icon ${["do", "vercel"][index]}`}>
               {(integration.name || integration.title || "C").charAt(0)}
             </span>
             <div>
