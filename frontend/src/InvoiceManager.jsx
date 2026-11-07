@@ -5,6 +5,7 @@ import {
   Download,
   Edit3,
   FileText,
+  Lock,
   Plus,
   RefreshCw,
   Search,
@@ -89,6 +90,94 @@ const monthCount = (start, end) => {
   return c * 12 + d - (a * 12 + b) + 1;
 };
 
+// Current and future months stay Scheduled (locked) until the month ends.
+const isLocked = (r) =>
+  r.data?.generated === true &&
+  Boolean(r.data?.periodMonth) &&
+  r.data.periodMonth >= currentMonth();
+const unlockText = (periodMonth) =>
+  dateText(`${addMonths(periodMonth, 1)}-01`);
+
+function EditAmountModal({ record, token, currency, onClose, onSaved }) {
+  const d = record.data || {};
+  const [amount, setAmount] = useState(
+    String(d.lineItems?.[0]?.amount ?? d.baseAmount ?? d.amount ?? ""),
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const save = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await call(`/api/admin/invoices/${record._id}/amount`, {
+        token,
+        method: "PATCH",
+        body: { amount: Number(amount) },
+      });
+      await onSaved();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="cl-modal-backdrop" onMouseDown={onClose}>
+      <form
+        className="cl-record-editor"
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={save}
+      >
+        <div className="cl-modal-head">
+          <div>
+            <span className="cl-eyebrow">SCHEDULED INVOICE</span>
+            <h2>{d.number || record.title}</h2>
+            <p>
+              {d.periodLabel} · locked until {unlockText(d.periodMonth)}. Set
+              the amount you expect to bill — the service charge
+              {d.gstApplied ? " and GST are" : " is"} recalculated.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="cl-icon-button"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        {error && <div className="cl-alert error">{error}</div>}
+        <div className="cl-record-fields">
+          <label className="cl-field wide">
+            <span>Base amount ({currency})</span>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              autoFocus
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <small className="cl-field-hint">
+              Currently invoiced in total: {money(d.amount, currency)}
+            </small>
+          </label>
+        </div>
+        <div className="cl-modal-footer">
+          <button type="button" className="cl-button secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="cl-button primary" disabled={busy || !amount}>
+            {busy ? "Saving…" : "Save amount"} <Check size={14} />
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function InvoiceManager({
   token,
   invoices,
@@ -114,6 +203,7 @@ export default function InvoiceManager({
     }
   }, [preselect]);
   const [busyId, setBusyId] = useState("");
+  const [editing, setEditing] = useState(null);
 
   const sorted = useMemo(
     () =>
@@ -194,12 +284,14 @@ export default function InvoiceManager({
           label: r.data.batchLabel,
           client: r.data.clientName,
           count: 0,
+          ready: 0,
           total: 0,
           cycle: r.data.billingCycle,
           currency: r.data.currency || currency,
         });
       const b = map.get(id);
       b.count += 1;
+      if (!isLocked(r)) b.ready += 1;
       b.total += Number(r.data.amount || 0);
     }
     return [...map.values()].filter((b) => b.count > 1).reverse();
@@ -301,7 +393,14 @@ export default function InvoiceManager({
                       <div className="cl-row-actions">
                         <button
                           className="cl-button secondary small"
-                          disabled={busyId === b.id}
+                          disabled={busyId === b.id || b.ready === 0}
+                          title={
+                            b.ready === 0
+                              ? "All months are scheduled and still locked"
+                              : b.ready < b.count
+                                ? `${b.count - b.ready} scheduled month(s) are left out`
+                                : ""
+                          }
                           onClick={() =>
                             run(b.id, () =>
                               downloadPdf(
@@ -311,7 +410,12 @@ export default function InvoiceManager({
                             )
                           }
                         >
-                          <Download size={13} /> All as PDF
+                          {b.ready === 0 ? <Lock size={13} /> : <Download size={13} />}{" "}
+                          {b.ready === b.count
+                            ? "All as PDF"
+                            : b.ready === 0
+                              ? "Locked"
+                              : `${b.ready} of ${b.count} as PDF`}
                         </button>
                         <button
                           className="cl-icon-button danger"
@@ -464,6 +568,11 @@ export default function InvoiceManager({
                       </b>
                     </td>
                     <td>
+                      {isLocked(r) ? (
+                        <span title={`Unlocks ${unlockText(r.data.periodMonth)}`}>
+                          <Status value="Scheduled" />
+                        </span>
+                      ) : (
                       <select
                         className="cl-status-select"
                         value={r.data?.status || "Pending"}
@@ -479,24 +588,44 @@ export default function InvoiceManager({
                           <option key={s}>{s}</option>
                         ))}
                       </select>
+                      )}
                     </td>
                     <td>
                       <div className="cl-row-actions">
-                        <button
-                          className="cl-icon-button"
-                          title="Download PDF"
-                          disabled={busyId === r._id}
-                          onClick={() =>
-                            run(r._id, () =>
-                              downloadPdf(
-                                `/api/admin/invoices/${r._id}/pdf`,
-                                token,
-                              ),
-                            )
-                          }
-                        >
-                          <Download size={14} />
-                        </button>
+                        {isLocked(r) ? (
+                          <>
+                            <button
+                              className="cl-icon-button"
+                              title="Edit scheduled amount"
+                              onClick={() => setEditing(r)}
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button
+                              className="cl-icon-button"
+                              title={`Locked — follows usage, unlocks ${unlockText(r.data.periodMonth)}`}
+                              disabled
+                            >
+                              <Lock size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="cl-icon-button"
+                            title="Download PDF"
+                            disabled={busyId === r._id}
+                            onClick={() =>
+                              run(r._id, () =>
+                                downloadPdf(
+                                  `/api/admin/invoices/${r._id}/pdf`,
+                                  token,
+                                ),
+                              )
+                            }
+                          >
+                            <Download size={14} />
+                          </button>
+                        )}
                         <button
                           className="cl-icon-button danger"
                           title="Delete"
@@ -525,6 +654,18 @@ export default function InvoiceManager({
         )}
       </section>
 
+      {editing && (
+        <EditAmountModal
+          record={editing}
+          token={token}
+          currency={editing.data?.currency || currency}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setNotice("Scheduled amount updated.");
+            await refresh();
+          }}
+        />
+      )}
       {open && (
         <GenerateModal
           token={token}
@@ -709,23 +850,30 @@ function GenerateModal({
             <div className="cl-alert success">
               <Check size={15} />
               {result.count} invoice{result.count === 1 ? "" : "s"} created for{" "}
-              {client?.data?.name}.
+              {client?.data?.name}
+              {result.lockedCount > 0 &&
+                ` — ${result.lockedCount} scheduled (locked until their month ends)`}
+              .
             </div>
             <div className="cl-modal-footer">
               <button className="cl-button secondary" onClick={onClose}>
                 Close
               </button>
-              <button
-                className="cl-button primary"
-                onClick={() =>
-                  onDownloadBatch(result.batchId).catch((e) =>
-                    setError(e.message),
-                  )
-                }
-              >
-                <Download size={14} /> Download{" "}
-                {result.count > 1 ? "all as one PDF" : "PDF"}
-              </button>
+              {result.count - (result.lockedCount || 0) > 0 && (
+                <button
+                  className="cl-button primary"
+                  onClick={() =>
+                    onDownloadBatch(result.batchId).catch((e) =>
+                      setError(e.message),
+                    )
+                  }
+                >
+                  <Download size={14} /> Download{" "}
+                  {result.count - (result.lockedCount || 0) > 1
+                    ? "available invoices as one PDF"
+                    : "PDF"}
+                </button>
+              )}
             </div>
           </>
         ) : (
@@ -1008,6 +1156,18 @@ function GenerateModal({
 
             {plan && (
               <div className="cl-split-preview">
+                {plan.lockedCount > 0 && (
+                  <div className="cl-alert info">
+                    <Lock size={14} />
+                    <span>
+                      {plan.lockedCount} current/future month
+                      {plan.lockedCount === 1 ? "" : "s"} will be saved as{" "}
+                      <b>Scheduled</b>: locked for you and the client (no PDF,
+                      amount hidden from the client) until the month ends. You
+                      can still edit the amount later.
+                    </span>
+                  </div>
+                )}
                 <div className="cl-split-head">
                   <b>
                     {plan.mode === "yearly"
@@ -1049,7 +1209,14 @@ function GenerateModal({
                     <tbody>
                       {plan.items.map((i) => (
                         <tr key={i.month}>
-                          <td>{i.label}</td>
+                          <td>
+                            {i.label}
+                            {i.locked && (
+                              <span className="cl-gst-badge" title="Scheduled — locked until the month ends">
+                                <Lock size={9} /> SCHEDULED
+                              </span>
+                            )}
+                          </td>
                           <td>{money(i.amount, cur)}</td>
                           {plan.serviceChargePct > 0 && (
                             <td>{money(i.charge, cur)}</td>
