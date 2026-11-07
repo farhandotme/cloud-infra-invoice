@@ -202,11 +202,11 @@ router.post("/generate", async (req, res, next) => {
           amount: base,
         },
       ];
-      if (pct)
-        lineItems.push({
-          description: `${brand} service charge (${pct}%)`,
-          amount: item.charge,
-        });
+      // Always list the service charge — shown as 0.00 when none was added.
+      lineItems.push({
+        description: `${brand} service charge (${pct || 0}%)`,
+        amount: pct ? item.charge : 0,
+      });
       return {
         type: "invoices",
         title: `${prefix}-${short}-${year}${String(month).padStart(2, "0")}`,
