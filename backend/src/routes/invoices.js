@@ -15,6 +15,8 @@ import {
   splitAmount,
   toUnits,
   withServiceCharge,
+  parseGstOptions,
+  gstOn,
 } from "../services/billing.js";
 import { sendInvoicesPdf } from "../services/invoicePdf.js";
 
@@ -23,18 +25,33 @@ router.use(requireAdmin);
 
 const STATUSES = new Set(["Draft", "Pending", "Paid", "Overdue", "Cancelled"]);
 
-function finish(plan, pct) {
-  const chargeTotal =
-    plan.items.reduce((a, i) => a + toUnits(i.charge), 0) / 100;
+function finish(plan, pct, gst) {
+  const sum = (key) =>
+    plan.items.reduce((a, i) => a + toUnits(i[key] || 0), 0) / 100;
   return {
     ...plan,
     serviceChargePct: pct,
-    chargeTotal,
-    grandTotal: Math.round(toUnits(plan.total) + toUnits(chargeTotal)) / 100,
+    chargeTotal: sum("charge"),
+    gst: gst
+      ? {
+          rate: gst.rate,
+          supplyType: gst.supplyType,
+          supplyChoice: gst.supplyChoice,
+          sac: gst.sac,
+          placeOfSupply: gst.placeOfSupply,
+          sellerGstin: gst.sellerGstin,
+          buyerGstin: gst.buyerGstin,
+        }
+      : null,
+    taxableTotal: gst ? sum("taxable") : 0,
+    cgstTotal: sum("cgst"),
+    sgstTotal: sum("sgst"),
+    igstTotal: sum("igst"),
+    gstTotal: sum("gstAmount"),
+    grandTotal: sum("total"),
   };
 }
 
-/** Works out the list of { month, label, amount } for a request. */
 function chargePct(body) {
   if (!body?.serviceCharge) return 0;
   const pct = Number(body.serviceChargePct);
@@ -44,18 +61,40 @@ function chargePct(body) {
     );
   return pct;
 }
-function priced(items, pct) {
+/** Adds the service charge and (optionally) GST to each { month, amount } item. */
+function priced(items, pct, gst) {
   const rows = withServiceCharge(
     items.map((i) => i.amount),
     pct,
   );
-  return items.map((item, i) => ({
-    ...item,
-    charge: rows[i].charge,
-    total: rows[i].total,
-  }));
+  return items.map((item, i) => {
+    const taxable = rows[i].total;
+    if (!gst)
+      return { ...item, charge: rows[i].charge, taxable, total: taxable };
+    const t = gstOn(taxable, gst);
+    return {
+      ...item,
+      charge: rows[i].charge,
+      taxable,
+      cgst: t.cgst,
+      sgst: t.sgst,
+      igst: t.igst,
+      gstAmount: t.gst,
+      total: t.total,
+    };
+  });
 }
-function buildPlan(body) {
+async function loadGstContext(body, clientId) {
+  if (!body?.gst?.enabled) return null;
+  const [settingsDoc, client] = await Promise.all([
+    Settings.findOne({ key: "main" }).lean(),
+    mongoose.isValidObjectId(clientId)
+      ? Record.findOne({ _id: clientId, type: "clients" }).lean()
+      : null,
+  ]);
+  return parseGstOptions(body.gst, settingsDoc?.data || {}, client?.data || {});
+}
+function buildPlan(body, gst) {
   const pct = chargePct(body);
   const mode = String(body?.mode || "").toLowerCase();
   const total = Number(body?.amount);
@@ -71,9 +110,11 @@ function buildPlan(body) {
         items: priced(
           [{ month: body.month, label: monthLabel(body.month), amount: total }],
           pct,
+          gst,
         ),
       },
       pct,
+      gst,
     );
   }
   if (mode === "yearly") {
@@ -97,18 +138,21 @@ function buildPlan(body) {
             amount: amounts[i],
           })),
           pct,
+          gst,
         ),
       },
       pct,
+      gst,
     );
   }
   throw httpError("Choose Monthly or Yearly.");
 }
 
 // Preview the split (nothing is saved).
-router.post("/preview", (req, res, next) => {
+router.post("/preview", async (req, res, next) => {
   try {
-    const plan = buildPlan(req.body);
+    const gst = await loadGstContext(req.body, req.body?.clientId);
+    const plan = buildPlan(req.body, gst);
     res.json({ ...plan, count: plan.items.length });
   } catch (error) {
     next(error);
@@ -149,6 +193,7 @@ router.post("/generate", async (req, res, next) => {
         throw httpError("Every invoice needs an amount greater than zero.");
     }
     const pct = chargePct(req.body);
+    const gst = await loadGstContext(req.body, clientId);
     const sum = items.reduce((acc, item) => acc + toUnits(item.amount), 0);
     if (sum !== toUnits(total))
       throw httpError(
@@ -182,6 +227,7 @@ router.post("/generate", async (req, res, next) => {
         .sort((a, b) => a.month.localeCompare(b.month))
         .map((i) => ({ month: i.month, amount: Number(i.amount) })),
       pct,
+      gst,
     );
     const first = sorted[0].month,
       last = sorted.at(-1).month;
@@ -220,7 +266,8 @@ router.post("/generate", async (req, res, next) => {
           dueDate: addDays(issueDate, 15),
           amount,
           currency,
-          taxRate: 0,
+          taxRate: gst ? gst.rate : 0,
+          gstApplied: Boolean(gst),
           status,
           paymentTerms: "Payable within 15 days of the issue date.",
           billingCycle: mode === "yearly" ? "Yearly" : "Monthly",
@@ -232,6 +279,24 @@ router.post("/generate", async (req, res, next) => {
                 baseAmount: base,
                 serviceChargePct: pct,
                 serviceCharge: item.charge,
+              }
+            : {}),
+          ...(gst
+            ? {
+                gstRate: gst.rate,
+                gstType: gst.supplyType === "inter" ? "IGST" : "CGST+SGST",
+                gstSac: gst.sac,
+                placeOfSupply: gst.placeOfSupply,
+                // Snapshots, so later edits in Settings never rewrite a bill already issued.
+                sellerGstin: gst.sellerGstin,
+                buyerGstin: gst.buyerGstin,
+                sellerLegalName: settings.organizationName || "",
+                sellerAddress: settings.gstAddress || "",
+                taxableValue: item.taxable,
+                cgst: item.cgst,
+                sgst: item.sgst,
+                igst: item.igst,
+                gstAmount: item.gstAmount,
               }
             : {}),
           batchId,
@@ -247,7 +312,13 @@ router.post("/generate", async (req, res, next) => {
       recordType: "invoices",
       title: `${cd.name || client.title} · ${batchLabel}`,
       actor: req.admin?.email,
-      details: { batchId, mode, total, count: created.length },
+      details: {
+        batchId,
+        mode,
+        total,
+        count: created.length,
+        gst: gst ? `${gst.rate}% ${gst.supplyType === "inter" ? "IGST" : "CGST+SGST"}` : "none",
+      },
     });
     res.status(201).json({ batchId, count: created.length, invoices: created });
   } catch (error) {
