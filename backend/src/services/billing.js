@@ -145,3 +145,142 @@ export function withServiceCharge(amounts, pct) {
     };
   });
 }
+
+/* ── GST ─────────────────────────────────────────────────────────────── */
+
+export const GST_RATES = [0, 0.25, 3, 5, 12, 18, 28];
+export const DEFAULT_SAC = "998315"; // hosting & IT infrastructure provisioning services
+
+export const GST_STATES = {
+  "01": "Jammu & Kashmir",
+  "02": "Himachal Pradesh",
+  "03": "Punjab",
+  "04": "Chandigarh",
+  "05": "Uttarakhand",
+  "06": "Haryana",
+  "07": "Delhi",
+  "08": "Rajasthan",
+  "09": "Uttar Pradesh",
+  10: "Bihar",
+  11: "Sikkim",
+  12: "Arunachal Pradesh",
+  13: "Nagaland",
+  14: "Manipur",
+  15: "Mizoram",
+  16: "Tripura",
+  17: "Meghalaya",
+  18: "Assam",
+  19: "West Bengal",
+  20: "Jharkhand",
+  21: "Odisha",
+  22: "Chhattisgarh",
+  23: "Madhya Pradesh",
+  24: "Gujarat",
+  26: "Dadra & Nagar Haveli and Daman & Diu",
+  27: "Maharashtra",
+  29: "Karnataka",
+  30: "Goa",
+  31: "Lakshadweep",
+  32: "Kerala",
+  33: "Tamil Nadu",
+  34: "Puducherry",
+  35: "Andaman & Nicobar Islands",
+  36: "Telangana",
+  37: "Andhra Pradesh",
+  38: "Ladakh",
+  97: "Other Territory",
+};
+
+const GSTIN_RE = /^(\d{2})[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const GSTIN_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+export const normalizeGstin = (value) =>
+  String(value || "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+
+/** Checks format, a known state code and the mod-36 check character. */
+export function isValidGstin(value) {
+  const gstin = normalizeGstin(value);
+  const match = GSTIN_RE.exec(gstin);
+  if (!match || !GST_STATES[match[1]]) return false;
+  let sum = 0;
+  for (let i = 0; i < 14; i += 1) {
+    const product = GSTIN_CHARS.indexOf(gstin[i]) * (i % 2 === 0 ? 1 : 2);
+    sum += Math.floor(product / 36) + (product % 36);
+  }
+  return GSTIN_CHARS[(36 - (sum % 36)) % 36] === gstin[14];
+}
+
+export const gstinState = (value) => {
+  const code = normalizeGstin(value).slice(0, 2);
+  return GST_STATES[code] ? { code, name: GST_STATES[code] } : null;
+};
+
+/**
+ * Works out whether GST is CGST+SGST (same state) or IGST (different state).
+ * `choice` is "auto" | "intra" | "inter". Auto compares the state codes of the
+ * two GSTINs; when the client has no valid GSTIN it falls back to intra-state.
+ */
+export function resolveSupplyType(choice, sellerGstin, buyerGstin) {
+  if (choice === "intra" || choice === "inter") return choice;
+  const seller = gstinState(sellerGstin);
+  const buyer = isValidGstin(buyerGstin) ? gstinState(buyerGstin) : null;
+  if (seller && buyer) return seller.code === buyer.code ? "intra" : "inter";
+  return "intra";
+}
+
+/** Validates the admin's GST choices for one invoice run. Returns null when GST is off. */
+export function parseGstOptions(input, settings = {}, client = {}) {
+  if (!input?.enabled) return null;
+  if (!settings.gstRegistered || !isValidGstin(settings.gstin))
+    throw httpError(
+      "Add your company's GSTIN under Settings → GST details before adding GST to invoices.",
+    );
+  const rate = Number(input.rate);
+  if (!Number.isFinite(rate) || rate <= 0 || rate > 40)
+    throw httpError("Enter a GST rate between 0.01 and 40 percent.");
+  const choice = ["auto", "intra", "inter"].includes(input.supplyType)
+    ? input.supplyType
+    : "auto";
+  const sac = String(input.sac || settings.gstSac || DEFAULT_SAC)
+    .replace(/\s+/g, "")
+    .slice(0, 8);
+  if (!/^\d{4,8}$/.test(sac))
+    throw httpError("The SAC / HSN code must be 4 to 8 digits.");
+  const sellerGstin = normalizeGstin(settings.gstin);
+  const buyerGstin = normalizeGstin(client.gstin);
+  const supplyType = resolveSupplyType(choice, sellerGstin, buyerGstin);
+  const placeCode = isValidGstin(buyerGstin)
+    ? gstinState(buyerGstin)
+    : gstinState(sellerGstin);
+  return {
+    rate,
+    supplyType,
+    supplyChoice: choice,
+    sac,
+    sellerGstin,
+    buyerGstin: buyerGstin || "",
+    placeOfSupply: placeCode
+      ? `${placeCode.name} (${placeCode.code})`
+      : "",
+  };
+}
+
+/**
+ * GST on one invoice's taxable value (paise maths so nothing drifts).
+ * Same state: CGST + SGST each at half the rate. Other state: IGST at the full rate.
+ */
+export function gstOn(taxable, { rate, supplyType }) {
+  const paise = toUnits(taxable);
+  const out = { cgst: 0, sgst: 0, igst: 0 };
+  if (supplyType === "inter") {
+    out.igst = Math.round((paise * rate) / 100) / 100;
+  } else {
+    const half = Math.round((paise * rate) / 200) / 100;
+    out.cgst = half;
+    out.sgst = half;
+  }
+  const gst = Math.round(toUnits(out.cgst) + toUnits(out.sgst) + toUnits(out.igst)) / 100;
+  return { ...out, gst, total: Math.round(paise + toUnits(gst)) / 100 };
+}
