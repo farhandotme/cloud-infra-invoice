@@ -4719,3 +4719,21 @@ tbody tr:hover {
 .inv-filter-clear:hover {
   border-color: #7f8b9a;
 }
+
+/* Scheduled (locked) invoices in the client portal */
+.status.scheduled {
+  background: #eaf1fd;
+  color: #3978e8;
+}
+.inv-locked-amount {
+  color: #7a8696;
+  font-size: 12px;
+  font-style: italic;
+}
+.inv-locked-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #7a8696;
+  font-size: 12px;
+}
