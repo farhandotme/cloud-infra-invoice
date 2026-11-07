@@ -254,7 +254,7 @@ export function buildServerProfile(client = {}, now = new Date()) {
   const slaPercent = tier === 3 ? "99.99" : tier === 2 ? "99.95" : "99.90";
 
   return {
-    provider: "Amazon Web Services",
+    provider: "Infrastructure Services",
     region: "Asia Pacific (Mumbai)",
     regionCode: "ap-south-1",
     availabilityZone:
