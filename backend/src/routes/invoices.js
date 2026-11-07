@@ -17,11 +17,23 @@ import {
   withServiceCharge,
   parseGstOptions,
   gstOn,
+  isLockedPeriod,
+  isLockedInvoice,
+  unlockDate,
 } from "../services/billing.js";
+import { releaseDueInvoices } from "../services/release.js";
 import { sendInvoicesPdf } from "../services/invoicePdf.js";
 
 const router = Router();
 router.use(requireAdmin);
+router.use(async (_req, _res, next) => {
+  try {
+    await releaseDueInvoices();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 const STATUSES = new Set(["Draft", "Pending", "Paid", "Overdue", "Cancelled"]);
 
@@ -31,6 +43,7 @@ function finish(plan, pct, gst) {
   return {
     ...plan,
     serviceChargePct: pct,
+    lockedCount: plan.items.filter((i) => i.locked).length,
     chargeTotal: sum("charge"),
     gst: gst
       ? {
@@ -69,11 +82,19 @@ function priced(items, pct, gst) {
   );
   return items.map((item, i) => {
     const taxable = rows[i].total;
+    const locked = isLockedPeriod(item.month);
     if (!gst)
-      return { ...item, charge: rows[i].charge, taxable, total: taxable };
+      return {
+        ...item,
+        locked,
+        charge: rows[i].charge,
+        taxable,
+        total: taxable,
+      };
     const t = gstOn(taxable, gst);
     return {
       ...item,
+      locked,
       charge: rows[i].charge,
       taxable,
       cgst: t.cgst,
@@ -268,7 +289,8 @@ router.post("/generate", async (req, res, next) => {
           currency,
           taxRate: gst ? gst.rate : 0,
           gstApplied: Boolean(gst),
-          status,
+          // Current and future months are Scheduled (locked) until the month ends.
+          status: item.locked ? "Scheduled" : status,
           paymentTerms: "Payable within 15 days of the issue date.",
           billingCycle: mode === "yearly" ? "Yearly" : "Monthly",
           periodMonth: item.month,
@@ -320,7 +342,12 @@ router.post("/generate", async (req, res, next) => {
         gst: gst ? `${gst.rate}% ${gst.supplyType === "inter" ? "IGST" : "CGST+SGST"}` : "none",
       },
     });
-    res.status(201).json({ batchId, count: created.length, invoices: created });
+    res.status(201).json({
+      batchId,
+      count: created.length,
+      lockedCount: sorted.filter((i) => i.locked).length,
+      invoices: created,
+    });
   } catch (error) {
     next(error);
   }
@@ -352,14 +379,21 @@ router.get("/batch/:batchId/pdf", async (req, res, next) => {
       .lean();
     if (!invoices.length)
       throw httpError("No invoices found for that batch.", 404);
-    const ctx = await loadContext(invoices);
-    const name = String(invoices[0].data.clientName || "client").replace(
+    // Scheduled (current/future) months are left out of the download.
+    const ready = invoices.filter((i) => !isLockedInvoice(i));
+    if (!ready.length)
+      throw httpError(
+        `These invoices are scheduled and unlock on ${unlockDate(invoices[0].data.periodMonth)}.`,
+        403,
+      );
+    const ctx = await loadContext(ready);
+    const name = String(ready[0].data.clientName || "client").replace(
       /[^\w]+/g,
       "_",
     );
-    sendInvoicesPdf(res, invoices, {
+    sendInvoicesPdf(res, ready, {
       ...ctx,
-      filename: `${name}_invoices_${invoices[0].data.periodMonth}_to_${invoices.at(-1).data.periodMonth}.pdf`,
+      filename: `${name}_invoices_${ready[0].data.periodMonth}_to_${ready.at(-1).data.periodMonth}.pdf`,
     });
   } catch (error) {
     next(error);
@@ -391,6 +425,88 @@ router.delete("/batch/:batchId", async (req, res, next) => {
   }
 });
 
+// Edit the internal amount of a scheduled (still locked) invoice. Service charge
+// and GST are recalculated from what the invoice was created with.
+router.patch("/:id/amount", async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id))
+      throw httpError("Invalid invoice ID.");
+    const invoice = await Record.findOne({
+      _id: req.params.id,
+      type: "invoices",
+    }).lean();
+    if (!invoice) throw httpError("Invoice not found.", 404);
+    if (!isLockedInvoice(invoice))
+      throw httpError(
+        "Only scheduled invoices can be edited. This month has already ended.",
+        409,
+      );
+    const amount = Number(req.body?.amount);
+    if (!Number.isFinite(amount) || amount <= 0)
+      throw httpError("Enter an amount greater than zero.");
+    const d = invoice.data;
+    const pct = Number(d.serviceChargePct) || 0;
+    const gst = d.gstApplied
+      ? {
+          rate: Number(d.gstRate),
+          supplyType: d.gstType === "IGST" ? "inter" : "intra",
+        }
+      : null;
+    const [row] = priced([{ month: d.periodMonth, amount }], pct, gst);
+    const lineItems = [
+      { ...(d.lineItems?.[0] || {}), amount },
+      {
+        ...(d.lineItems?.[1] || {
+          description: `Mindboxx service charge (${pct}%)`,
+        }),
+        amount: pct ? row.charge : 0,
+      },
+    ];
+    const set = {
+      "data.amount": row.total,
+      "data.lineItems": lineItems,
+    };
+    if (pct) {
+      set["data.baseAmount"] = amount;
+      set["data.serviceCharge"] = row.charge;
+    }
+    if (gst) {
+      set["data.taxableValue"] = row.taxable;
+      set["data.cgst"] = row.cgst;
+      set["data.sgst"] = row.sgst;
+      set["data.igst"] = row.igst;
+      set["data.gstAmount"] = row.gstAmount;
+    }
+    await Record.updateOne({ _id: invoice._id }, { $set: set });
+    if (d.batchId && d.billingCycle === "Yearly") {
+      const all = await Record.find({
+        type: "invoices",
+        "data.batchId": d.batchId,
+      })
+        .select("data.lineItems")
+        .lean();
+      const yearly =
+        all.reduce((s, r) => s + toUnits(r.data?.lineItems?.[0]?.amount), 0) /
+        100;
+      await Record.updateMany(
+        { type: "invoices", "data.batchId": d.batchId },
+        { $set: { "data.yearlyTotal": yearly } },
+      );
+    }
+    await AuditLog.create({
+      action: "edited scheduled invoice amount",
+      recordType: "invoices",
+      recordId: String(invoice._id),
+      title: d.number,
+      actor: req.admin?.email,
+      details: { from: d.baseAmount ?? d.lineItems?.[0]?.amount, to: amount },
+    });
+    res.json({ message: "Amount updated.", total: row.total });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:id/pdf", async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id))
@@ -400,6 +516,11 @@ router.get("/:id/pdf", async (req, res, next) => {
       type: "invoices",
     }).lean();
     if (!invoice) throw httpError("Invoice not found.", 404);
+    if (isLockedInvoice(invoice))
+      throw httpError(
+        `This invoice is scheduled — its amount follows usage and it unlocks on ${unlockDate(invoice.data.periodMonth)}.`,
+        403,
+      );
     const ctx = await loadContext([invoice]);
     sendInvoicesPdf(res, [invoice], {
       ...ctx,
