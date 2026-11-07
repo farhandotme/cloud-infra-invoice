@@ -2,6 +2,8 @@ import { Router } from "express";
 import Record from "../models/Record.js";
 import Settings from "../models/Settings.js";
 import { sendInvoicesPdf } from "../services/invoicePdf.js";
+import { isLockedInvoice, unlockDate } from "../services/billing.js";
+import { releaseDueInvoices } from "../services/release.js";
 
 const router = Router();
 const publicRecordTypes = [
@@ -200,13 +202,27 @@ const recordFields = {
     "timestamp",
   ],
 };
-function sanitizeData(type, data = {}) {
-  const allowed = recordFields[type] || [];
-  return Object.fromEntries(
+// Money fields a client must not see while an invoice is still scheduled.
+const MONEY_FIELDS = new Set([
+  "amount", "baseAmount", "serviceChargePct", "serviceCharge", "lineItems",
+  "taxRate", "gstRate", "gstType", "gstAmount", "taxableValue", "gstApplied",
+]);
+function sanitizeData(type, data = {}, locked = false) {
+  const allowed = (recordFields[type] || []).filter(
+    (key) => !(locked && MONEY_FIELDS.has(key)),
+  );
+  const out = Object.fromEntries(
     allowed
       .filter((key) => Object.hasOwn(data, key))
       .map((key) => [key, data[key]]),
   );
+  if (locked) {
+    out.status = "Scheduled";
+    out.locked = true;
+    out.unlocksOn = unlockDate(data.periodMonth);
+    delete out.pdfUrl;
+  }
+  return out;
 }
 
 const publicSettingKeys = [
@@ -234,6 +250,7 @@ const publicSettingKeys = [
 router.get("/portal", async (_req, res, next) => {
   try {
     res.set("Cache-Control", "no-store");
+    await releaseDueInvoices();
     const [records, settingsDoc] = await Promise.all([
       Record.find({ type: { $in: publicRecordTypes }, isActive: true })
         .sort({ sortOrder: 1, updatedAt: -1 })
@@ -270,7 +287,11 @@ router.get("/portal", async (_req, res, next) => {
         isActive: record.isActive,
         sortOrder: record.sortOrder,
         updatedAt: record.updatedAt,
-        data: sanitizeData(record.type, record.data),
+        data: sanitizeData(
+          record.type,
+          record.data,
+          record.type === "invoices" && isLockedInvoice(record),
+        ),
       });
     const rawSettings = settingsDoc?.data || {};
     const settings = Object.fromEntries(
@@ -306,6 +327,10 @@ router.get("/invoices/:id/pdf", async (req, res, next) => {
       .toLowerCase();
     if (!invoice || (scope && code && code !== scope))
       return res.status(404).json({ message: "Invoice not found." });
+    if (isLockedInvoice(invoice))
+      return res.status(403).json({
+        message: `This invoice is not final yet. It follows your usage and is available from ${unlockDate(invoice.data.periodMonth)}.`,
+      });
     const [client, settingsDoc] = await Promise.all([
       Record.findOne({
         type: "clients",
