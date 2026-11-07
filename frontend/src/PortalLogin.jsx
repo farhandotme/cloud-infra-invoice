@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { Cloud, Copy, KeyRound, Lock, Mail, ShieldCheck, Smartphone } from "lucide-react";
+import {
+  ArrowUpRight,
+  Cloud,
+  Copy,
+  KeyRound,
+  Lock,
+  Mail,
+  ShieldCheck,
+  Smartphone,
+} from "lucide-react";
 import {
   authCall,
   getPortalToken,
   setPortalToken,
 } from "./portalSession.js";
+import "./portal-login.css";
 
 /**
  * Wraps the customer portal. Without a valid sign-in only the login screen is
@@ -111,201 +121,253 @@ function LoginFlow({ onDone }) {
     setRecovery(false);
   };
 
+
   return (
-    <div className="pg-wrap">
-      <div className="pg-card">
-        <div className="pg-brand">
-          <span className="pg-mark">
-            <Cloud size={20} />
+    <div className="pl-shell">
+      <div className="pl-side">
+        <div className="pl-brand">
+          <span>
+            <Cloud size={21} />
           </span>
           <b>CloudLedger</b>
         </div>
-
-        {step === "password" && (
-          <form onSubmit={submitPassword}>
-            <h1>Sign in</h1>
-            <p className="pg-sub">
-              Sign in to view your cloud infrastructure dashboard.
-            </p>
-            {error && <div className="pg-error">{error}</div>}
-            <label className="pg-field">
-              <span>Email</span>
-              <input
-                type="email"
-                autoComplete="username"
-                autoFocus
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
-            <label className="pg-field">
-              <span>Password</span>
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
-            <button className="pg-button" disabled={busy}>
-              <Lock size={15} /> {busy ? "Checking…" : "Continue"}
-            </button>
-          </form>
-        )}
-
-        {step === "setup" && qr && (
-          <form onSubmit={submitSetup}>
-            <h1>Set up Google Authenticator</h1>
-            <p className="pg-sub">
-              One-time setup. Scan this QR code with Google Authenticator (or
-              any authenticator app), then enter the 6-digit code it shows.
-            </p>
-            {error && <div className="pg-error">{error}</div>}
-            <div className="pg-qr">
-              <img src={qr.qr} alt="Authenticator QR code" width="200" height="200" />
-            </div>
-            <details className="pg-manual">
-              <summary>Can't scan? Enter the key manually</summary>
-              <code>{qr.secret.match(/.{1,4}/g).join(" ")}</code>
-            </details>
-            <CodeInput value={code} onChange={setCode} />
-            <button className="pg-button" disabled={busy || code.length < 6}>
-              <Smartphone size={15} /> {busy ? "Verifying…" : "Verify and finish"}
-            </button>
-            <button type="button" className="pg-link" onClick={back}>
-              Back
-            </button>
-          </form>
-        )}
-
-        {step === "codes" && (
-          <div>
-            <h1>Save your recovery codes</h1>
-            <p className="pg-sub">
-              If you lose your phone, each of these codes can be used once
-              instead of an authenticator code. Store them somewhere safe — they
-              won't be shown again.
-            </p>
-            <div className="pg-codes">
-              {codes.map((c) => (
-                <code key={c}>{c}</code>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="pg-button ghost"
-              onClick={() => {
-                navigator.clipboard?.writeText(codes.join("\n"));
-                setCopied(true);
-              }}
-            >
-              <Copy size={15} /> {copied ? "Copied" : "Copy codes"}
-            </button>
-            <button type="button" className="pg-button" onClick={onDone}>
-              <ShieldCheck size={15} /> I've saved them — open dashboard
-            </button>
+        <div className="pl-pitch">
+          <div className="pl-eyebrow">
+            <i /> CUSTOMER PORTAL
           </div>
-        )}
+          <h1>
+            Your infrastructure.
+            <br />
+            Your usage.
+            <br />
+            <em>One dashboard.</em>
+          </h1>
+          <p>
+            View your cloud infrastructure, usage and invoices in one secure
+            place.
+          </p>
+        </div>
+        <div className="pl-foot">
+          Password <b>·</b> Two-step verification <b>·</b> Private portal
+        </div>
+      </div>
 
-        {step === "totp" && (
-          <form onSubmit={submitTotp}>
-            <h1>Two-step verification</h1>
-            <p className="pg-sub">
-              {recovery
-                ? "Enter one of your unused recovery codes."
-                : "Open Google Authenticator and enter the 6-digit code."}
-            </p>
-            {error && <div className="pg-error">{error}</div>}
-            {recovery ? (
-              <label className="pg-field">
-                <span>Recovery code</span>
+      <div className="pl-form-wrap">
+        <div className="pl-card">
+          {step === "password" && (
+            <form onSubmit={submitPassword}>
+              <Head
+                icon={Lock}
+                eyebrow="SECURE SIGN IN"
+                title="Welcome back"
+                text="Sign in to view your cloud infrastructure dashboard."
+              />
+              {error && <div className="pl-alert">{error}</div>}
+              <label className="pl-field">
+                Email address
                 <input
+                  type="email"
+                  autoComplete="username"
                   autoFocus
-                  autoComplete="off"
-                  placeholder="XXXXX-XXXXX"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  required
+                  placeholder="you@yourcompany.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </label>
-            ) : (
+              <label className="pl-field">
+                Password
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </label>
+              <button className="pl-button" disabled={busy}>
+                {busy ? "Checking…" : "Continue"} <ArrowUpRight size={15} />
+              </button>
+              <small className="pl-note">
+                Access is limited to authorised users. There is no public
+                sign-up.
+              </small>
+            </form>
+          )}
+
+          {step === "setup" && qr && (
+            <form onSubmit={submitSetup}>
+              <Head
+                icon={Smartphone}
+                eyebrow="AUTHENTICATOR SETUP"
+                title="Set up Google Authenticator"
+                text="Scan this QR code with Google Authenticator (or any authenticator app), then enter the 6-digit code it shows."
+              />
+              {error && <div className="pl-alert">{error}</div>}
+              <div className="pl-qr">
+                <img src={qr.qr} alt="Authenticator QR code" width="200" height="200" />
+              </div>
+              <details className="pl-manual">
+                <summary>Can't scan? Enter the key manually</summary>
+                <code>{qr.secret.match(/.{1,4}/g).join(" ")}</code>
+              </details>
               <CodeInput value={code} onChange={setCode} />
-            )}
-            <button
-              className="pg-button"
-              disabled={busy || code.length < (recovery ? 10 : 6)}
-            >
-              <KeyRound size={15} /> {busy ? "Verifying…" : "Verify"}
-            </button>
-            <div className="pg-row">
+              <button className="pl-button" disabled={busy || code.length < 6}>
+                {busy ? "Verifying…" : "Verify and finish"} <ArrowUpRight size={15} />
+              </button>
+              <div className="pl-row">
+                <button type="button" className="pl-link" onClick={back}>
+                  Back
+                </button>
+              </div>
+            </form>
+          )}
+
+          {step === "codes" && (
+            <div>
+              <Head
+                icon={ShieldCheck}
+                eyebrow="RECOVERY CODES"
+                title="Save your recovery codes"
+                text="If you lose your phone, each of these codes can be used once instead of an authenticator code. Store them somewhere safe — they won't be shown again."
+              />
+              <div className="pl-codes">
+                {codes.map((c) => (
+                  <code key={c}>{c}</code>
+                ))}
+              </div>
               <button
                 type="button"
-                className="pg-link"
+                className="pl-button ghost"
                 onClick={() => {
-                  setRecovery(!recovery);
-                  setCode("");
-                  setError("");
+                  navigator.clipboard?.writeText(codes.join("\n"));
+                  setCopied(true);
                 }}
               >
-                {recovery ? "Use authenticator code" : "Use a recovery code"}
+                <Copy size={15} /> {copied ? "Copied" : "Copy codes"}
               </button>
-              <button type="button" className="pg-link" onClick={back}>
-                Start over
-              </button>
-            </div>
-            <div className="pg-row">
-              <button
-                type="button"
-                className="pg-link"
-                disabled={busy}
-                onClick={sendResetCode}
-              >
-                Lost your authenticator? Reset by email
+              <button type="button" className="pl-button" onClick={onDone}>
+                I've saved them — open dashboard <ArrowUpRight size={15} />
               </button>
             </div>
-          </form>
-        )}
+          )}
 
-        {step === "reset" && (
-          <form onSubmit={submitReset}>
-            <h1>Check your email</h1>
-            <p className="pg-sub">
-              We sent a 6-digit code to {sentTo}. Enter it to set up a new
-              authenticator. The code expires in 10 minutes.
-            </p>
-            {error && <div className="pg-error">{error}</div>}
-            <CodeInput value={code} onChange={setCode} />
-            <button className="pg-button" disabled={busy || code.length < 6}>
-              <Mail size={15} /> {busy ? "Checking…" : "Verify code"}
-            </button>
-            <div className="pg-row">
+          {step === "totp" && (
+            <form onSubmit={submitTotp}>
+              <Head
+                icon={KeyRound}
+                eyebrow="TWO-STEP VERIFICATION"
+                title="Enter your code"
+                text={
+                  recovery
+                    ? "Enter one of your unused recovery codes."
+                    : "Open Google Authenticator and enter the 6-digit code."
+                }
+              />
+              {error && <div className="pl-alert">{error}</div>}
+              {recovery ? (
+                <label className="pl-field">
+                  Recovery code
+                  <input
+                    autoFocus
+                    autoComplete="off"
+                    placeholder="XXXXX-XXXXX"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  />
+                </label>
+              ) : (
+                <CodeInput value={code} onChange={setCode} />
+              )}
               <button
-                type="button"
-                className="pg-link"
-                disabled={busy || wait > 0}
-                onClick={sendResetCode}
+                className="pl-button"
+                disabled={busy || code.length < (recovery ? 10 : 6)}
               >
-                {wait > 0 ? `Send again in ${wait}s` : "Send a new code"}
+                {busy ? "Verifying…" : "Verify"} <ArrowUpRight size={15} />
               </button>
-              <button type="button" className="pg-link" onClick={back}>
-                Start over
+              <div className="pl-row">
+                <button
+                  type="button"
+                  className="pl-link"
+                  onClick={() => {
+                    setRecovery(!recovery);
+                    setCode("");
+                    setError("");
+                  }}
+                >
+                  {recovery ? "Use authenticator code" : "Use a recovery code"}
+                </button>
+                <button type="button" className="pl-link" onClick={back}>
+                  Start over
+                </button>
+              </div>
+              <div className="pl-row">
+                <button
+                  type="button"
+                  className="pl-link"
+                  disabled={busy}
+                  onClick={sendResetCode}
+                >
+                  Lost your authenticator? Reset by email
+                </button>
+              </div>
+            </form>
+          )}
+
+          {step === "reset" && (
+            <form onSubmit={submitReset}>
+              <Head
+                icon={Mail}
+                eyebrow="RESET AUTHENTICATOR"
+                title="Check your email"
+                text={`We sent a 6-digit code to ${sentTo}. Enter it to set up a new authenticator. The code expires in 10 minutes.`}
+              />
+              {error && <div className="pl-alert">{error}</div>}
+              <CodeInput value={code} onChange={setCode} />
+              <button className="pl-button" disabled={busy || code.length < 6}>
+                {busy ? "Checking…" : "Verify code"} <ArrowUpRight size={15} />
               </button>
-            </div>
-          </form>
-        )}
+              <div className="pl-row">
+                <button
+                  type="button"
+                  className="pl-link"
+                  disabled={busy || wait > 0}
+                  onClick={sendResetCode}
+                >
+                  {wait > 0 ? `Send again in ${wait}s` : "Send a new code"}
+                </button>
+                <button type="button" className="pl-link" onClick={back}>
+                  Start over
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
-      <p className="pg-foot">Access is limited to authorised users.</p>
     </div>
+  );
+}
+
+function Head({ icon: Icon, eyebrow, title, text }) {
+  return (
+    <>
+      <div className="pl-icon">
+        <Icon size={20} />
+      </div>
+      <span className="pl-eyebrow">{eyebrow}</span>
+      <h2>{title}</h2>
+      <p className="pl-sub">{text}</p>
+    </>
   );
 }
 
 function CodeInput({ value, onChange }) {
   return (
-    <label className="pg-field">
-      <span>6-digit code</span>
+    <label className="pl-field">
+      6-digit code
       <input
-        className="pg-code"
+        className="pl-code"
         inputMode="numeric"
         autoComplete="one-time-code"
         autoFocus
