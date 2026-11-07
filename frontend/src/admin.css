@@ -2302,3 +2302,19 @@ a {
 @media (max-width: 720px) {
   .cl-gst-grid { grid-template-columns: 1fr; }
 }
+
+/* Scheduled (locked) invoices */
+.cl-alert.info {
+  background: #1a2230;
+  border-color: #33466b;
+  color: #a9c3ec;
+  font-size: 12px;
+  align-items: flex-start;
+}
+.cl-alert.info svg { flex: none; margin-top: 2px; }
+.cl-status.scheduled {
+  color: #a9c3ec;
+  border-color: #33466b;
+  background: #1a2230;
+}
+.cl-gst-badge svg { vertical-align: -1px; margin-right: 2px; }
