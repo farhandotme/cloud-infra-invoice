@@ -122,3 +122,34 @@ Real bills follow usage, traffic and resource consumption, so the current and fu
 - You still set the internal amount per month (edit it any time with the pencil icon; service charge and GST recalculate).
 - On the **1st of the next month** the invoice automatically becomes Pending and downloadable. Set `BILLING_TZ` (default `Asia/Kolkata`) to change the time zone used for "today".
 - Yearly sets download only their released months; scheduled months are left out until they unlock.
+
+## Customer portal sign-in (password + Google Authenticator)
+
+The customer infrastructure dashboard at `/` now needs a sign-in. The `/admin` panel and its login are unchanged.
+
+1. **Email + password** — the same `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `backend/.env` (checked directly against the file, so changing the password in the admin panel does not affect it). Changing `ADMIN_PASSWORD` in `.env` signs everyone out of the portal.
+2. **Google Authenticator** — on the first sign-in a QR code is shown; scan it, enter the 6-digit code, and save the 8 one-time recovery codes. Every later sign-in asks for the current code (or a recovery code).
+
+Optional `.env` settings: `PORTAL_SESSION_HOURS` (default 8), `PORTAL_2FA_ISSUER` (name shown in the authenticator app, default CloudLedger).
+
+**Lost your phone / deleted the authenticator?**
+
+1. On the sign-in screen, enter email + password, then click **Lost your authenticator? Reset by email**.
+2. A 6-digit code is emailed to `ADMIN_EMAIL` (valid 10 minutes, 5 tries, one new code per minute).
+3. Enter it, scan the new QR code, and save the new recovery codes. The old authenticator and old recovery codes stop working once the new one is confirmed (until then the old one still works, so an abandoned reset changes nothing).
+
+This needs SMTP settings in `backend/.env` (any provider: Gmail app password, SES, Brevo, etc.):
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=apikey_or_username
+SMTP_PASS=password
+SMTP_FROM=CloudLedger <noreply@yourdomain.com>
+```
+
+`SMTP_SECURE` is optional (defaults to true only for port 465). In production the reset is refused when `SMTP_HOST` is not set; outside production the code is printed in the server log instead. Run `npm install` in `backend/` (adds `nodemailer`).
+
+Last resort (no email access either): run `npm run portal:reset-2fa` in `backend/` on the server; the next sign-in shows a fresh QR code.
+
+All `/api/public/*` data (including invoice PDFs) is refused without a portal session. Run `npm install` in `backend/` (adds `qrcode`).
