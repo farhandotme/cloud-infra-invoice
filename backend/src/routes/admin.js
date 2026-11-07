@@ -3,7 +3,13 @@ import mongoose from "mongoose";
 import { randomBytes } from "crypto";
 import Record from "../models/Record.js";
 import Settings from "../models/Settings.js";
-import { isValidGstin, normalizeGstin, gstinState } from "../services/billing.js";
+import {
+  isValidGstin,
+  normalizeGstin,
+  gstinState,
+  isLockedInvoice,
+} from "../services/billing.js";
+import { releaseDueInvoices } from "../services/release.js";
 import AuditLog from "../models/AuditLog.js";
 import { requireAdmin } from "../middleware/auth.js";
 
@@ -119,6 +125,7 @@ async function audit(req, action, record, details = {}) {
 
 router.get("/records", async (req, res, next) => {
   try {
+    await releaseDueInvoices();
     const filter = {};
     if (req.query.type) {
       if (!checkType(String(req.query.type)))
@@ -160,6 +167,19 @@ router.put("/records/:id", async (req, res, next) => {
     const payload = safeRecord(req.body, current.type, current.data || {});
     if (!payload.title)
       return res.status(400).json({ message: "A record title is required." });
+    // A scheduled invoice stays Scheduled and keeps its figures here; its amount
+    // is changed through PATCH /api/admin/invoices/:id/amount so GST stays right.
+    if (current.type === "invoices" && isLockedInvoice(current)) {
+      for (const key of [
+        "amount", "baseAmount", "serviceCharge", "serviceChargePct", "lineItems",
+        "taxableValue", "cgst", "sgst", "igst", "gstAmount", "gstApplied",
+        "gstRate", "gstType", "periodMonth", "generated",
+      ]) {
+        if (key in current.data) payload.data[key] = current.data[key];
+        else delete payload.data[key];
+      }
+      payload.data.status = "Scheduled";
+    }
     current.title = payload.title;
     current.data = payload.data;
     current.isActive = payload.isActive;
