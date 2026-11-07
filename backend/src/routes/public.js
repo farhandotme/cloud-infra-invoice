@@ -93,6 +93,11 @@ const recordFields = {
     "baseAmount",
     "serviceChargePct",
     "serviceCharge",
+    "gstApplied",
+    "gstRate",
+    "gstType",
+    "gstAmount",
+    "taxableValue",
   ],
   transactions: [
     "reference",
