@@ -113,3 +113,12 @@ The contract accrual chart uses a fixed scale equal to the full allocation for t
 - In **Invoices → Generate**, the *Add GST* box decides per run whether the bills are GST invoices. Off = plain invoice, no GST, no GSTIN anywhere on it.
 - On = **TAX INVOICE** with your GSTIN, the client's GSTIN, place of supply, SAC code and a taxable value / CGST + SGST (same state) or IGST (other state) breakdown. *Tax type* is auto-detected from the two GSTIN state codes and can be overridden; rate is 5/12/18/28% or custom.
 - GST is charged on the amount plus any service charge. Each bill stores a snapshot of the GSTINs and tax figures, so later Settings changes never alter an issued invoice.
+
+## Future invoices (scheduled / locked)
+
+Real bills follow usage, traffic and resource consumption, so the current and future months can't be downloaded as final invoices.
+
+- Generating a **current or future month** saves it as **Scheduled**: no PDF for you or the client, and the client portal shows "Upcoming · Based on usage" with no amount.
+- You still set the internal amount per month (edit it any time with the pencil icon; service charge and GST recalculate).
+- On the **1st of the next month** the invoice automatically becomes Pending and downloadable. Set `BILLING_TZ` (default `Asia/Kolkata`) to change the time zone used for "today".
+- Yearly sets download only their released months; scheduled months are left out until they unlock.
