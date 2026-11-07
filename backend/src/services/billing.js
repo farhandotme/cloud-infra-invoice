@@ -284,3 +284,27 @@ export function gstOn(taxable, { rate, supplyType }) {
   const gst = Math.round(toUnits(out.cgst) + toUnits(out.sgst) + toUnits(out.igst)) / 100;
   return { ...out, gst, total: Math.round(paise + toUnits(gst)) / 100 };
 }
+
+/* ── Future-invoice locking ──────────────────────────────────────────────
+ * A generated invoice stays "Scheduled" (locked: no PDF for admin or client,
+ * amount hidden from the client) through the last day of its billing month,
+ * because the real bill follows usage. It unlocks on the 1st of the next month.
+ */
+export const billingTimeZone = () => process.env.BILLING_TZ || "Asia/Kolkata";
+
+/** Current 'YYYY-MM' in the billing time zone. */
+export function currentMonthKey(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: billingTimeZone(),
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  return `${get("year")}-${get("month")}`;
+}
+export const isLockedPeriod = (periodMonth, nowKey = currentMonthKey()) =>
+  Boolean(parseMonth(periodMonth)) && periodMonth >= nowKey;
+export const isLockedInvoice = (invoice) =>
+  invoice?.data?.generated === true && isLockedPeriod(invoice.data.periodMonth);
+/** First day the invoice can be downloaded, 'YYYY-MM-DD'. */
+export const unlockDate = (periodMonth) => `${addMonths(periodMonth, 1)}-01`;
