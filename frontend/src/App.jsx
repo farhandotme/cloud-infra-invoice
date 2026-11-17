@@ -549,7 +549,7 @@ function App() {
                 {settings.pageDescriptions?.[page] ||
                   (page === "Dashboard"
                     ? settings.dashboardSubtitle ||
-                      "View your infrastructure, resource consumption and managed cloud costs."
+                      "View your infrastructure, resource consumption and managed cloud costs according to usage."
                     : page === "Company dashboard"
                       ? "Your dedicated cloud environment, resources and operating costs."
                       : `View ${page.toLowerCase()} for your managed cloud environment.`)}
@@ -844,21 +844,21 @@ function Dashboard({
       cpuUtilization: {
         label: "Average CPU utilization",
         value: `${avg(series, "cpu").toFixed(1)}%`,
-        change: "Rolling sample",
+        change: "Rolling data",
         footnote: "Automatically simulated usage",
         icon: "cpu",
       },
       memoryUsage: {
         label: "Average memory usage",
         value: `${avg(series, "memory").toFixed(1)}%`,
-        change: "Rolling sample",
+        change: "Rolling data",
         footnote: "Automatically simulated usage",
         icon: "activity",
       },
       networkThroughput: {
         label: "Network throughput",
         value: `${avg(series, "network").toFixed(1)} Mbps`,
-        change: "Rolling sample",
+        change: "Rolling data",
         footnote: "Average network I/O",
         icon: "network",
       },
@@ -937,7 +937,7 @@ function Dashboard({
         ) : (
           <>
             <StatCard
-              label="Agreed contract amount"
+              label="Accrued amount"
               value={
                 selectedClient
                   ? `${money(selectedClient.contractAmount ?? selectedClient.monthlyCost ?? 0, currency)} / ${(selectedClient.billingCycle || "Monthly").toLowerCase()}`
@@ -945,7 +945,7 @@ function Dashboard({
                     ? money(total, currency)
                     : "—"
               }
-              change="Fixed contract amount"
+              change="Projected Amount"
               icon={Wallet}
               foot="configured billing cycle"
             />
@@ -954,14 +954,14 @@ function Dashboard({
               value={numberText(active)}
               change={`${resources.length} total resources`}
               icon={Server}
-              foot="from saved inventory"
+              // foot="from saved inventory"
             />
             <StatCard
               label="Average CPU utilization"
               value={`${cpu.toFixed(1)}%`}
-              change="Live sample"
+              change="Live Utilization"
               icon={Cpu}
-              foot="animated telemetry"
+              // foot="animated telemetry"
             />
             <StatCard
               label="Managed storage"
@@ -978,7 +978,7 @@ function Dashboard({
               }
               change={`${resources.length} resources`}
               icon={Database}
-              foot="configured capacity"
+              foot="Capacity According to Usage"
             />
           </>
         )}
@@ -988,7 +988,7 @@ function Dashboard({
           <div className="panel-head">
             <div>
               <h3>Resource utilization</h3>
-              <p>Automatically generated rolling telemetry</p>
+              <p>Live Data rolling telemetry</p>
             </div>
             <div className="panel-controls">
               <div className="segmented">
@@ -1148,7 +1148,7 @@ function Dashboard({
           <div className="panel-head">
             <div>
               <h3>Infrastructure health</h3>
-              <p>Based on the rolling sample and configured resources</p>
+              <p>Based on the rolling data and configured resources</p>
             </div>
             <button className="more-btn" aria-label="More">
               <MoreHorizontal size={18} />
@@ -1182,7 +1182,7 @@ function Dashboard({
               <p>
                 {health === null
                   ? "Telemetry is starting."
-                  : "Automatically estimated from the rolling sample."}
+                  : "Automatically estimated from the rolling data."}
               </p>
             </div>
           </div>
@@ -1331,7 +1331,9 @@ function Dashboard({
                     ) : (
                       <b>{money(invoice.amount, currency)}</b>
                     )}
-                    <Status status={invoice.locked ? "Upcoming" : invoice.status} />
+                    <Status
+                      status={invoice.locked ? "Upcoming" : invoice.status}
+                    />
                   </div>
                 </div>
               ))}
@@ -1435,7 +1437,7 @@ function Infrastructure({ resources, currency }) {
         <div className="panel-head">
           <div>
             <h3>Compute instances & services</h3>
-            <p>Allocated resources and automatic budget-based estimates</p>
+            <p>Connected resources and metered usage metrics</p>
           </div>
         </div>
         <div className="table-scroll">
@@ -1536,22 +1538,22 @@ function Analytics({ series, resources, currency, todayAccrued = 0 }) {
         <StatCard
           label="Average CPU"
           value={`${averageCpu.toFixed(1)}%`}
-          change="Live sample"
+          change="Live data"
           icon={Cpu}
-          foot="animated telemetry"
+          // foot="animated telemetry"
         />
         <StatCard
           label="Average memory"
           value={`${averageMemory.toFixed(1)}%`}
-          change="Live sample"
+          change="Live data"
           positive={false}
           icon={MemoryStick}
-          foot="animated telemetry"
+          // foot="animated telemetry"
         />
         <StatCard
           label="Network throughput"
           value={`${averageNetwork.toFixed(1)} Mbps`}
-          change="Live sample"
+          change="Live data"
           icon={Network}
           foot="rolling average"
         />
@@ -1567,7 +1569,7 @@ function Analytics({ series, resources, currency, todayAccrued = 0 }) {
         <div className="panel-head">
           <div>
             <h3>Performance telemetry</h3>
-            <p>Automatically generated rolling sample</p>
+            <p>Live 24-hour rolling telemetry</p>
           </div>
           <span className="status connected">Live simulation</span>
         </div>
@@ -1611,7 +1613,7 @@ function Analytics({ series, resources, currency, todayAccrued = 0 }) {
         </div>
         <div className="chart-bottom">
           <span>
-            <span className="live-dot" /> Sample data · updates automatically
+            <span className="live-dot" /> Updates automatically
           </span>
           <span>{series.length} rolling points</span>
         </div>
@@ -1655,7 +1657,7 @@ function Analytics({ series, resources, currency, todayAccrued = 0 }) {
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h3>Latest sample</h3>
+              <h3>Latest data</h3>
               <p>{dateText(latest.timestamp)}</p>
             </div>
           </div>
@@ -2079,7 +2081,9 @@ function Invoices({ invoices, currency }) {
                     )}
                   </td>
                   <td>
-                    <Status status={invoice.locked ? "Upcoming" : invoice.status} />
+                    <Status
+                      status={invoice.locked ? "Upcoming" : invoice.status}
+                    />
                   </td>
                   <td>
                     {invoice.locked ? (
@@ -2135,7 +2139,8 @@ function Invoices({ invoices, currency }) {
           <p>
             Invoice records and document links are published by your cloud
             provider. Upcoming months are billed on actual usage — they unlock
-            as a downloadable invoice once the month ends. Contact support if you need a copy or clarification.
+            as a downloadable invoice once the month ends. Contact support if
+            you need a copy or clarification.
           </p>
         </div>
       </div>

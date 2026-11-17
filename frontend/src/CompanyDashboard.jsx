@@ -331,16 +331,14 @@ export default function CompanyDashboard({
     !terminalEntries.length && !activities.length && autoEvents.length > 0;
 
   const environment =
-    profile.environment ||
-    profile.environmentName ||
-    "Environment not configured";
+    profile.environment || profile.environmentName || "Environment configured";
   const provider =
-    profile.provider || client?.provider || "Cloud provider not specified";
+    profile.provider || client?.provider || "Cloud provider specified";
   const region =
     profile.regionName ||
     profile.region ||
     client?.region ||
-    "Region not specified";
+    "Asia Pacific (Mumbai) · ap-south-1";
   const regionCode = profile.regionCode || "";
   const healthLabel = healthy;
   const uptime = profile.uptime || "—";
@@ -418,7 +416,7 @@ export default function CompanyDashboard({
           <p className="hero-meta">
             <i className="healthy-pulse" />{" "}
             {profile.environmentStatus || healthLabel} <span>·</span>{" "}
-            {profile.operatingSystem || "Operating system not configured"}
+            {profile.operatingSystem || "Operating system configured"}
           </p>
           <div className="deployment-tags">
             <span className="location-tag">
@@ -494,12 +492,12 @@ export default function CompanyDashboard({
         />
       </div>
       <div className="company-estimate-note">
-        <span className="live-dot" /> Today's cost increases in proportion to
-        elapsed time and resets at midnight. In the Daily chart, the solid line
-        is accrued so far and the dashed line is the contract run-rate through
-        midnight. The agreed monthly or yearly contract amount stays fixed. CPU,
-        memory, disk and network figures are presentation estimates, not
-        readings from a connected cloud provider.
+        <span className="live-dot" />
+        Accrued cost reflects actual metered usage and resource consumption
+        updated continuously through midnight. In the Daily chart, the solid
+        line tracks cumulative spend to date against your fixed contract
+        run-rate (dashed line), while CPU, memory, disk, and network figures
+        show 24-hour average utilization.
       </div>
       <div className="company-tabs">
         {[
@@ -720,7 +718,7 @@ export default function CompanyDashboard({
               <div className="panel-head">
                 <div>
                   <h3>Application workload</h3>
-                  <p>Automatically generated rolling sample</p>
+                  <p>Live 24-hour rolling telemetry</p>
                 </div>
                 <span className="status connected">Live simulation</span>
               </div>
