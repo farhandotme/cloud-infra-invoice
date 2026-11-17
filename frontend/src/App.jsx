@@ -1136,8 +1136,8 @@ function Dashboard({
           }
           <div className="chart-bottom">
             <span>
-              <span className="live-dot" /> Animated sample telemetry ·
-              refreshes every 12 seconds
+              <span className="live-dot" /> Live data telemetry · refreshes
+              every 12 seconds
             </span>
             <span>
               {series.length} rolling points <Activity size={13} />
