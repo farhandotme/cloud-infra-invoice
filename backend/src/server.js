@@ -95,7 +95,7 @@ async function start() {
   }
 
   app.listen(PORT, () =>
-    console.log(`CloudLedger API listening on http://localhost:${PORT}`),
+    console.log(`Mindtree API listening on http://localhost:${PORT}`),
   );
 }
 

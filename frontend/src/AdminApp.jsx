@@ -4,7 +4,6 @@ import {
   Building2,
   Check,
   ChevronRight,
-  Cloud,
   Edit3,
   FileText,
   LayoutDashboard,
@@ -32,6 +31,7 @@ import {
   YAxis,
 } from "recharts";
 import InvoiceManager from "./InvoiceManager.jsx";
+import mindtreeLogo from "./assets/images/recta.png";
 import { DEFAULT_SAC, GST_RATES, cleanGstin, gstinState, isValidGstin } from "./gst.js";
 
 const API = import.meta.env.VITE_API_URL || "";
@@ -330,16 +330,18 @@ function App() {
       style={{ "--cl-accent": settings.accentColor || "#cdd2d9" }}
     >
       <aside className={`cl-sidebar ${mobileNav ? "is-open" : ""}`}>
-        <div className="cl-brand">
-          <div className="cl-brand-mark">
+        <div className={`cl-brand ${settings.logoUrl ? "" : "cl-brand-logo-mode"}`}>
+          <div
+            className={`cl-brand-mark ${settings.logoUrl ? "" : "cl-brand-mark-logo"}`}
+          >
             {settings.logoUrl ? (
               <img src={settings.logoUrl} alt="" />
             ) : (
-              <Cloud size={19} />
+              <img src={mindtreeLogo} alt="Mindtree Communications" />
             )}
           </div>
           <div>
-            <b>{settings.brandName || "CloudLedger"}</b>
+            {settings.logoUrl && <b>{settings.brandName || "Mindtree"}</b>}
             <span>ADMIN</span>
           </div>
           <button
@@ -538,10 +540,10 @@ function Login({ onLogin }) {
     <div className="cl-login-shell">
       <div className="cl-login-side">
         <div className="cl-login-brand">
-          <span>
-            <Cloud size={21} />
+          <span className="cl-login-logo">
+            <img src={mindtreeLogo} alt="Mindtree Communications" />
           </span>
-          <b>CloudLedger</b>
+          <b>Mindtree</b>
         </div>
         <div className="cl-login-pitch">
           <div className="cl-eyebrow">

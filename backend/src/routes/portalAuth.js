@@ -44,7 +44,7 @@ const RESET_MAX_ATTEMPTS = 5;
 
 const digest = (v) => createHash("sha256").update(String(v)).digest();
 const same = (a, b) => timingSafeEqual(digest(a), digest(b));
-const issuer = () => process.env.PORTAL_2FA_ISSUER || "CloudLedger";
+const issuer = () => process.env.PORTAL_2FA_ISSUER || "Mindtree";
 const bad = (res, status, message) => res.status(status).json({ message });
 
 const temp = (purpose, minutes, extra = {}) =>

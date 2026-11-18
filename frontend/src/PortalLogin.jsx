@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ArrowUpRight,
-  Cloud,
   Copy,
   KeyRound,
   Lock,
@@ -9,12 +8,9 @@ import {
   ShieldCheck,
   Smartphone,
 } from "lucide-react";
-import {
-  authCall,
-  getPortalToken,
-  setPortalToken,
-} from "./portalSession.js";
+import { authCall, getPortalToken, setPortalToken } from "./portalSession.js";
 import "./portal-login.css";
+import mindtreeLogo from "./assets/images/recta.png";
 
 /**
  * Wraps the customer portal. Without a valid sign-in only the login screen is
@@ -121,15 +117,14 @@ function LoginFlow({ onDone }) {
     setRecovery(false);
   };
 
-
   return (
     <div className="pl-shell">
       <div className="pl-side">
         <div className="pl-brand">
-          <span>
-            <Cloud size={21} />
+          <span className="pl-logo">
+            <img src={mindtreeLogo} alt="Mindtree Communications" />
           </span>
-          <b>CloudLedger</b>
+          {/* <b>Mindtree</b> */}
         </div>
         <div className="pl-pitch">
           <div className="pl-eyebrow">
@@ -206,7 +201,12 @@ function LoginFlow({ onDone }) {
               />
               {error && <div className="pl-alert">{error}</div>}
               <div className="pl-qr">
-                <img src={qr.qr} alt="Authenticator QR code" width="200" height="200" />
+                <img
+                  src={qr.qr}
+                  alt="Authenticator QR code"
+                  width="200"
+                  height="200"
+                />
               </div>
               <details className="pl-manual">
                 <summary>Can't scan? Enter the key manually</summary>
@@ -214,7 +214,8 @@ function LoginFlow({ onDone }) {
               </details>
               <CodeInput value={code} onChange={setCode} />
               <button className="pl-button" disabled={busy || code.length < 6}>
-                {busy ? "Verifying…" : "Verify and finish"} <ArrowUpRight size={15} />
+                {busy ? "Verifying…" : "Verify and finish"}{" "}
+                <ArrowUpRight size={15} />
               </button>
               <div className="pl-row">
                 <button type="button" className="pl-link" onClick={back}>
@@ -374,7 +375,9 @@ function CodeInput({ value, onChange }) {
         maxLength={7}
         placeholder="000000"
         value={value}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
+        onChange={(e) =>
+          onChange(e.target.value.replace(/\D/g, "").slice(0, 6))
+        }
       />
     </label>
   );

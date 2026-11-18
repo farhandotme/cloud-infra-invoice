@@ -4753,3 +4753,44 @@ tbody tr:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* Mindtree logo in portal sidebar */
+.brand-mark.brand-mark-logo,
+.app-shell .brand-mark.brand-mark-logo {
+  width: auto;
+  height: 30px;
+  background: transparent;
+  border-radius: 0;
+}
+.portal-brand-logo {
+  height: 30px;
+  width: auto;
+  display: block;
+}
+
+/* Logo-only brand block: logo on top, subtitle underneath */
+.brand.brand-logo-mode {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  position: relative;
+}
+.brand-logo-mode .brand-mark.brand-mark-logo,
+.brand-logo-mode .portal-brand-logo {
+  height: 36px;
+  margin-left: 15px;
+}
+.brand-logo-mode span {
+  margin-top: 0;
+  white-space: nowrap;
+}
+.brand-logo-mode .mobile-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.infra {
+  margin-left: 50px;
+  margin-top: 30px;
+}

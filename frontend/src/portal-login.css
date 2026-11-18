@@ -268,3 +268,17 @@
     padding: 45px 22px;
   }
 }
+
+/* Mindtree logo on login */
+.pl-brand > span.pl-logo {
+  width: auto;
+  height: 32px;
+  background: transparent;
+  border-radius: 0;
+}
+.pl-logo img {
+  height: 32px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}

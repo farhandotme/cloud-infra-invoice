@@ -2318,3 +2318,50 @@ a {
   background: #1a2230;
 }
 .cl-gst-badge svg { vertical-align: -1px; margin-right: 2px; }
+
+/* Mindtree logo in admin sidebar + login */
+.cl-brand-mark.cl-brand-mark-logo {
+  width: auto;
+  height: 30px;
+  background: transparent;
+  border-radius: 0;
+}
+.cl-brand-mark.cl-brand-mark-logo img {
+  width: auto;
+  height: 30px;
+  max-width: none;
+  display: block;
+}
+.cl-login-brand > span.cl-login-logo {
+  width: auto;
+  height: 32px;
+  background: transparent;
+  border-radius: 0;
+}
+.cl-login-logo img {
+  height: 32px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
+
+/* Logo-only brand block: logo on top, subtitle underneath */
+.cl-brand.cl-brand-logo-mode {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  position: relative;
+}
+.cl-brand-logo-mode .cl-brand-mark.cl-brand-mark-logo,
+.cl-brand-logo-mode .cl-brand-mark.cl-brand-mark-logo img {
+  height: 36px;
+}
+.cl-brand-logo-mode span {
+  margin-top: 0;
+  white-space: nowrap;
+}
+.cl-brand-logo-mode .cl-mobile-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+}

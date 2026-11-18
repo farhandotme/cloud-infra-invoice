@@ -50,6 +50,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import CompanyDashboard from "./CompanyDashboard.jsx";
+import mindtreeLogo from "./assets/images/recta.png";
 import { makeLiveUsageSeries } from "./liveTelemetry.js";
 import {
   downloadPortalFile,
@@ -417,8 +418,10 @@ function App() {
       style={{ "--portal-accent": settings.accentColor || "#3978e8" }}
     >
       <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
-        <div className="brand">
-          <div className="brand-mark">
+        <div className={`brand ${settings.logoUrl ? "" : "brand-logo-mode"}`}>
+          <div
+            className={`brand-mark ${settings.logoUrl ? "" : "brand-mark-logo"}`}
+          >
             {settings.logoUrl ? (
               <img
                 className="portal-brand-image"
@@ -426,12 +429,16 @@ function App() {
                 alt=""
               />
             ) : (
-              <Cloud size={20} />
+              <img
+                className="portal-brand-logo"
+                src={mindtreeLogo}
+                alt="Mindtree Communications"
+              />
             )}
           </div>
           <div>
-            <b>{settings.brandName || "cloudledger"}</b>
-            <span>INFRASTRUCTURE OS</span>
+            {settings.logoUrl && <b>{settings.brandName || "Mindtree"}</b>}
+            <span className="infra">INFRASTRUCTURE OS</span>
           </div>
           <button className="mobile-close" onClick={() => setMobileNav(false)}>
             <X size={18} />
@@ -682,7 +689,7 @@ function App() {
         <footer className="footer">
           <span>
             {settings.footerText ||
-              `© ${new Date().getFullYear()} ${settings.brandName || "CloudLedger Console"} · Customer portal`}
+              `© ${new Date().getFullYear()} ${settings.brandName || "Mindtree"} · Customer portal`}
           </span>
           <span>
             {footerBlocks.map((block) => (

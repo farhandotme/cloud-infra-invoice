@@ -105,7 +105,7 @@ function drawInvoice(doc, invoice, client = {}, settings = {}) {
   const L = 40;
   const W = doc.page.width - 80;
   const R = L + W;
-  const org = settings.organizationName || settings.brandName || "CloudLedger";
+  const org = settings.organizationName || settings.brandName || "Mindtree";
   const currency = d.currency || settings.currency || "INR";
   const number = d.number || invoice.title || "—";
   const status = String(d.status || "Pending");
@@ -464,7 +464,7 @@ export function sendInvoicesPdf(
     bufferPages: true,
     info: {
       Title: filename.replace(/\.pdf$/i, ""),
-      Producer: settings.organizationName || "CloudLedger",
+      Producer: settings.organizationName || "Mindtree",
     },
   });
   res.setHeader("Content-Type", "application/pdf");
