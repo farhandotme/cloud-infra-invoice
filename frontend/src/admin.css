@@ -1,4 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+/* ...rest of your styles... */
 :root {
   font-family: "DM Sans", sans-serif;
   color: #e4e7ec;
@@ -2258,14 +2261,18 @@ a {
 }
 
 /* GST */
-.cl-gst-box { margin-top: 4px; }
+.cl-gst-box {
+  margin-top: 4px;
+}
 .cl-gst-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 10px;
 }
-.cl-gst-grid .cl-field input { margin-top: 6px; }
+.cl-gst-grid .cl-field input {
+  margin-top: 6px;
+}
 .cl-gst-badge {
   margin-left: 8px;
   padding: 1px 6px;
@@ -2288,8 +2295,12 @@ a {
   font-size: 12px;
   color: #9aa6b4;
 }
-.cl-gst-toggle { margin: 12px 0; }
-.cl-bad { color: #ff8a8a !important; }
+.cl-gst-toggle {
+  margin: 12px 0;
+}
+.cl-bad {
+  color: #ff8a8a !important;
+}
 .cl-link {
   background: none;
   border: 0;
@@ -2300,7 +2311,9 @@ a {
   font: inherit;
 }
 @media (max-width: 720px) {
-  .cl-gst-grid { grid-template-columns: 1fr; }
+  .cl-gst-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Scheduled (locked) invoices */
@@ -2311,13 +2324,19 @@ a {
   font-size: 12px;
   align-items: flex-start;
 }
-.cl-alert.info svg { flex: none; margin-top: 2px; }
+.cl-alert.info svg {
+  flex: none;
+  margin-top: 2px;
+}
 .cl-status.scheduled {
   color: #a9c3ec;
   border-color: #33466b;
   background: #1a2230;
 }
-.cl-gst-badge svg { vertical-align: -1px; margin-right: 2px; }
+.cl-gst-badge svg {
+  vertical-align: -1px;
+  margin-right: 2px;
+}
 
 /* Mindtree logo in admin sidebar + login */
 .cl-brand-mark.cl-brand-mark-logo {
