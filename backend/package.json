@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "portal:reset-2fa": "node scripts/reset-portal-2fa.js"
+    "portal:reset-2fa": "node scripts/reset-portal-2fa.js",
+    "fix-dates": "node scripts/fix-scheduled-dates.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
