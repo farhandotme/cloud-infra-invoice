@@ -337,12 +337,12 @@ function App() {
             {settings.logoUrl ? (
               <img src={settings.logoUrl} alt="" />
             ) : (
-              <img src={mindtreeLogo} alt="Mindtree Communications" />
+              <img className="ml-7" src={mindtreeLogo} alt="Mindtree Communications" />
             )}
           </div>
           <div>
             {settings.logoUrl && <b>{settings.brandName || "Mindtree"}</b>}
-            <span>ADMIN</span>
+            <span className="ml-20">ADMIN</span>
           </div>
           <button
             className="cl-mobile-close"
