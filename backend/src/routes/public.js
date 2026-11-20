@@ -314,6 +314,8 @@ router.get("/invoices/:id/pdf", async (req, res, next) => {
   try {
     if (!/^[a-f0-9]{24}$/i.test(req.params.id))
       return res.status(400).json({ message: "Invalid invoice ID." });
+    // A month that just ended is released first, so the PDF never prints "Scheduled" on an unlocked invoice.
+    await releaseDueInvoices();
     const invoice = await Record.findOne({
       _id: req.params.id,
       type: "invoices",
