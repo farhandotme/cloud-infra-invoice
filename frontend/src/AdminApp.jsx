@@ -32,7 +32,13 @@ import {
 } from "recharts";
 import InvoiceManager from "./InvoiceManager.jsx";
 import mindtreeLogo from "./assets/images/recta.png";
-import { DEFAULT_SAC, GST_RATES, cleanGstin, gstinState, isValidGstin } from "./gst.js";
+import {
+  DEFAULT_SAC,
+  GST_RATES,
+  cleanGstin,
+  gstinState,
+  isValidGstin,
+} from "./gst.js";
 
 const API = import.meta.env.VITE_API_URL || "";
 const money = (value, currency = "INR") => {
@@ -330,14 +336,20 @@ function App() {
       style={{ "--cl-accent": settings.accentColor || "#cdd2d9" }}
     >
       <aside className={`cl-sidebar ${mobileNav ? "is-open" : ""}`}>
-        <div className={`cl-brand ${settings.logoUrl ? "" : "cl-brand-logo-mode"}`}>
+        <div
+          className={`cl-brand ${settings.logoUrl ? "" : "cl-brand-logo-mode"}`}
+        >
           <div
             className={`cl-brand-mark ${settings.logoUrl ? "" : "cl-brand-mark-logo"}`}
           >
             {settings.logoUrl ? (
               <img src={settings.logoUrl} alt="" />
             ) : (
-              <img className="ml-7" src={mindtreeLogo} alt="Mindtree Communications" />
+              <img
+                className="ml-7"
+                src={mindtreeLogo}
+                alt="Mindtree Communications"
+              />
             )}
           </div>
           <div>
@@ -543,7 +555,7 @@ function Login({ onLogin }) {
           <span className="cl-login-logo">
             <img src={mindtreeLogo} alt="Mindtree Communications" />
           </span>
-          <b>Mindtree</b>
+          {/* <b>Mindtree</b> */}
         </div>
         <div className="cl-login-pitch">
           <div className="cl-eyebrow">
@@ -1031,7 +1043,9 @@ function GstSettings({ draft, setDraft }) {
               value={draft.gstSac || ""}
               placeholder={DEFAULT_SAC}
               inputMode="numeric"
-              onChange={(e) => set("gstSac", e.target.value.replace(/\D/g, "").slice(0, 8))}
+              onChange={(e) =>
+                set("gstSac", e.target.value.replace(/\D/g, "").slice(0, 8))
+              }
             />
             <small className="cl-field-hint">
               998315 = hosting & IT infrastructure services.
