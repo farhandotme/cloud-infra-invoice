@@ -7,7 +7,9 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "portal:reset-2fa": "node scripts/reset-portal-2fa.js",
-    "fix-dates": "node scripts/fix-scheduled-dates.js"
+    "fix-dates": "node scripts/fix-scheduled-dates.js",
+    "backup": "node scripts/backup-db.js",
+    "restore": "node scripts/restore-db.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
