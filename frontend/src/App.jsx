@@ -101,6 +101,18 @@ const dateText = (value) =>
         year: "numeric",
       })
     : "—";
+// "2026-11" -> "November 2026": the billing month the invoice is for.
+const monthText = (key) => {
+  const m = /^(\d{4})-(\d{2})/.exec(String(key || ""));
+  return m
+    ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1)).toLocaleDateString(
+        "en-IN",
+        { month: "long", year: "numeric", timeZone: "UTC" },
+      )
+    : "—";
+};
+const invoiceMonth = (invoice) =>
+  monthText(invoice.periodMonth || String(invoice.issueDate || "").slice(0, 7));
 const numberText = (value) => Number(value || 0).toLocaleString("en-IN");
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 const avg = (items, key) => {
@@ -2054,6 +2066,7 @@ function Invoices({ invoices, currency }) {
                 <th>INVOICE ID</th>
                 <th>CLIENT</th>
                 <th>BILLING CYCLE</th>
+                <th>MONTH</th>
                 <th>ISSUE DATE</th>
                 <th>DUE DATE</th>
                 <th>TOTAL</th>
@@ -2071,6 +2084,7 @@ function Invoices({ invoices, currency }) {
                   <td>
                     <span className="plan-pill">{invoice.cycle}</span>
                   </td>
+                  <td>{invoiceMonth(invoice)}</td>
                   <td>{invoice.date}</td>
                   <td>{invoice.due}</td>
                   <td>
