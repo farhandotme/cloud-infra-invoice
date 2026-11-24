@@ -11,7 +11,6 @@ import {
   monthLabel,
   monthRange,
   addMonths,
-  addDays,
   splitAmount,
   toUnits,
   withServiceCharge,
@@ -20,7 +19,6 @@ import {
   isLockedPeriod,
   isLockedInvoice,
   unlockDate,
-  scheduledDates,
 } from "../services/billing.js";
 import { releaseDueInvoices } from "../services/release.js";
 import { sendInvoicesPdf } from "../services/invoicePdf.js";
@@ -260,10 +258,8 @@ router.post("/generate", async (req, res, next) => {
 
     const docs = sorted.map((item) => {
       const { year, month } = parseMonth(item.month);
-      // A month that is still running is issued the day it unlocks (see scheduledDates); a past month keeps the 1st of its own month.
-      const issueDate = item.locked
-        ? scheduledDates(item.month).issueDate
-        : `${item.month}-01`;
+      // Every invoice is issued on the 1st of the month AFTER its billing month (October -> 01 Nov), i.e. the unlock date.
+      const issueDate = unlockDate(item.month);
       const base = Number(item.amount);
       const amount = item.total;
       const brand = "Mindboxx";
@@ -288,7 +284,7 @@ router.post("/generate", async (req, res, next) => {
           clientName: cd.name || client.title,
           clientCode: cd.code,
           issueDate,
-          dueDate: addDays(issueDate, 15),
+          dueDate: issueDate, // due date = issue date
           amount,
           currency,
           taxRate: gst ? gst.rate : 0,
