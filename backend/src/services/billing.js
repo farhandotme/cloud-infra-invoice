@@ -310,17 +310,24 @@ export const isLockedInvoice = (invoice) =>
 export const unlockDate = (periodMonth) => `${addMonths(periodMonth, 1)}-01`;
 
 /**
- * Dates for an invoice that is generated BEFORE its month has ended. Its real bill follows usage, so it is issued on
- * the day it unlocks (the 1st of the next month) and payable 15 days after that, not 15 days after the 1st of a month
- * the client cannot even download it in yet.
+ * Dates for an invoice that is generated BEFORE its month has ended: issued the day it unlocks (the 1st of the next
+ * month) and due the same day, so a November invoice reads "01 Dec 2026" for both.
  */
 export const scheduledDates = (periodMonth) => {
   const issueDate = unlockDate(periodMonth);
-  return { issueDate, dueDate: addDays(issueDate, 15) };
+  return { issueDate, dueDate: issueDate };
 };
-/** True when an invoice still carries the dates older versions gave it (issued on the 1st of its own month, due 15 days later), i.e. nobody changed them by hand. */
-export const hasLegacyDates = (data = {}) => {
+/**
+ * True when an invoice still carries dates that earlier versions set automatically, i.e. nobody changed them by hand:
+ *  - issued on the 1st of its own month, due 15 days later, or
+ *  - issued on the unlock date, due 15 days after that.
+ */
+export const hasAutoDates = (data = {}) => {
   if (!parseMonth(data.periodMonth)) return false;
-  const issueDate = `${data.periodMonth}-01`;
-  return data.issueDate === issueDate && data.dueDate === addDays(issueDate, 15);
+  const first = `${data.periodMonth}-01`;
+  const unlock = unlockDate(data.periodMonth);
+  return (
+    (data.issueDate === first && data.dueDate === addDays(first, 15)) ||
+    (data.issueDate === unlock && data.dueDate === addDays(unlock, 15))
+  );
 };
